@@ -1,3 +1,5 @@
 /target
 /Cargo.lock
 bench_out.txt
+.ipynb_checkpoints/
+venv/
