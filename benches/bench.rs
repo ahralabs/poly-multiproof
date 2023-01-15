@@ -16,8 +16,8 @@ fn open_benchmark(c: &mut Criterion) {
     let m1 = method1::Setup::<Bls12_381>::new(MAX_SIZE, MAX_SIZE, &mut thread_rng());
     let m2: method2::Setup<Bls12_381> = m1.clone().try_into().unwrap();
     let grid = TestGrid::<Fr>::gen_grid(MAX_LOG_SIZE);
-    for n_pts in powers_of_2(MAX_LOG_SIZE - 1) {
-        for n_poly in powers_of_2(MAX_LOG_SIZE - 1) {
+    for n_pts in (1..MAX_SIZE/2).step_by(MAX_SIZE/64) {
+        for n_poly in (1..MAX_SIZE).step_by(MAX_SIZE/64) {
             let subgrid = grid.trim(n_poly, n_pts);
             group.bench_with_input(
                 BenchmarkId::new(format!("m1_{}", n_pts), n_poly),
@@ -66,8 +66,8 @@ fn verify_benchmark(c: &mut Criterion) {
         .map(|c| m1.commit(c).unwrap())
         .collect::<Vec<_>>();
 
-    for n_pts in powers_of_2(MAX_LOG_SIZE - 1) {
-        for n_poly in powers_of_2(MAX_LOG_SIZE - 1) {
+    for n_pts in (1..MAX_SIZE/2).step_by(MAX_SIZE/64) {
+        for n_poly in (1..MAX_SIZE).step_by(MAX_SIZE/64) {
             let subgrid = grid.trim(n_poly, n_pts);
             let subcommits = &commits[..n_poly];
             {
@@ -167,9 +167,5 @@ impl<F: PrimeField> TestGrid<F> {
     }
 }
 
-fn powers_of_2(max_log: u32) -> Vec<usize> {
-    (0..=max_log).map(|i| 2usize.pow(i)).collect()
-}
-
-criterion_group!(benches, verify_benchmark, open_benchmark);
+criterion_group!(benches, open_benchmark, verify_benchmark);
 criterion_main!(benches);
