@@ -4,7 +4,7 @@ use ark_poly::{
     univariate::DensePolynomial, DenseUVPolynomial, EvaluationDomain, Radix2EvaluationDomain,
 };
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
-use kzg_multiproof::{method1, method2, MultiOpenKzg};
+use poly_multiproof::{method1, method2, MultiOpenKzg};
 use merlin::Transcript;
 use rand::thread_rng;
 
