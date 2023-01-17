@@ -5,6 +5,7 @@ use ark_poly::{univariate::DensePolynomial, DenseUVPolynomial, Polynomial};
 
 use crate::Error;
 
+#[derive(Debug, Clone)]
 pub(crate) struct LagrangeInterpContext<F: FftField> {
     lag_polys: Vec<DensePolynomial<F>>,
 }

@@ -4,22 +4,28 @@ use ark_poly::{
     univariate::DensePolynomial, DenseUVPolynomial, EvaluationDomain, Radix2EvaluationDomain,
 };
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
-use poly_multiproof::{method1, method2};
 use merlin::Transcript;
+use poly_multiproof::{method1, method1_precomp, method2};
 use rand::thread_rng;
 
 const MAX_LOG_SIZE: u32 = 8;
 const MAX_SIZE: usize = 2usize.pow(MAX_LOG_SIZE);
-const STEP_SIZE: usize = MAX_SIZE/4;
+const STEP_SIZE: usize = MAX_SIZE / 4;
 
 fn open_benchmark(c: &mut Criterion) {
     let mut group = c.benchmark_group("open");
     let m1 = method1::Setup::<Bls12_381>::new(MAX_SIZE, MAX_SIZE, &mut thread_rng());
     let m2: method2::Setup<Bls12_381> = m1.clone().try_into().unwrap();
     let grid = TestGrid::<Fr>::gen_grid(MAX_LOG_SIZE);
-    for n_pts in (1..MAX_SIZE/2).step_by(STEP_SIZE) {
+    for n_pts in (1..MAX_SIZE).step_by(STEP_SIZE) {
         for n_poly in (1..MAX_SIZE).step_by(STEP_SIZE) {
             let subgrid = grid.trim(n_poly, n_pts);
+            let m1_pc = method1_precomp::Setup::<Bls12_381>::new_with_powers(
+                m1.powers_of_g1.clone(),
+                m1.powers_of_g2.clone(),
+                vec![subgrid.points.clone()],
+            )
+            .expect("Failed to construct m1pc");
             group.bench_with_input(
                 BenchmarkId::new(format!("m1_{}", n_pts), n_poly),
                 &n_poly,
@@ -33,6 +39,18 @@ fn open_benchmark(c: &mut Criterion) {
                             &subgrid.points,
                         )
                         .unwrap();
+                    })
+                },
+            );
+            group.bench_with_input(
+                BenchmarkId::new(format!("m1_pc_{}", n_pts), n_poly),
+                &n_poly,
+                |b, _i| {
+                    b.iter(|| {
+                        let mut transcript = Transcript::new(b"bench");
+                        m1_pc
+                            .open(&mut transcript, &subgrid.evals, &subgrid.coeffs, 0)
+                            .unwrap();
                     })
                 },
             );
@@ -67,10 +85,11 @@ fn verify_benchmark(c: &mut Criterion) {
         .map(|c| m1.commit(c).unwrap())
         .collect::<Vec<_>>();
 
-    for n_pts in (1..MAX_SIZE/2).step_by(STEP_SIZE) {
+    for n_pts in (1..MAX_SIZE).step_by(STEP_SIZE) {
         for n_poly in (1..MAX_SIZE).step_by(STEP_SIZE) {
             let subgrid = grid.trim(n_poly, n_pts);
             let subcommits = &commits[..n_poly];
+            // Method 1
             {
                 let mut m1_open_transcript = Transcript::new(b"bench");
                 let m1_open = m1
@@ -100,6 +119,43 @@ fn verify_benchmark(c: &mut Criterion) {
                     },
                 );
             }
+            // Method 1 with precomputes
+            {
+                let m1_pc = method1_precomp::Setup::<Bls12_381>::new_with_powers(
+                    m1.powers_of_g1.clone(),
+                    m1.powers_of_g2.clone(),
+                    vec![subgrid.points.clone()],
+                )
+                .expect("Failed to construct m1_pc");
+                let mut m1_pc_open_transcript = Transcript::new(b"bench");
+                let m1_pc_open = m1_pc
+                    .open(
+                        &mut m1_pc_open_transcript,
+                        &subgrid.evals,
+                        &subgrid.coeffs,
+                        0,
+                    )
+                    .unwrap();
+                group.bench_with_input(
+                    BenchmarkId::new(format!("m1_pc_{}", n_pts), n_poly),
+                    &n_poly,
+                    |b, _i| {
+                        b.iter(|| {
+                            let mut transcript = Transcript::new(b"bench");
+                            assert!(m1_pc
+                                .verify(
+                                    &mut transcript,
+                                    &subcommits,
+                                    0,
+                                    &subgrid.evals,
+                                    &m1_pc_open,
+                                )
+                                .unwrap());
+                        })
+                    },
+                );
+            }
+            // Method 2
             {
                 let mut m2_open_transcript = Transcript::new(b"bench");
                 let m2_open = m2

@@ -21,9 +21,9 @@ use super::{
 
 #[derive(Clone, Debug)]
 pub struct Setup<E: Pairing> {
-    powers_of_g1: Vec<E::G1Affine>,
-    g2: E::G2Affine,
-    g2x: E::G2Affine,
+    pub powers_of_g1: Vec<E::G1Affine>,
+    pub g2: E::G2Affine,
+    pub g2x: E::G2Affine,
 }
 
 impl<E: Pairing> TryFrom<method1::Setup<E>> for Setup<E> {
