@@ -20,12 +20,9 @@ fn open_benchmark(c: &mut Criterion) {
     for n_pts in (1..MAX_SIZE).step_by(STEP_SIZE) {
         for n_poly in (1..MAX_SIZE).step_by(STEP_SIZE) {
             let subgrid = grid.trim(n_poly, n_pts);
-            let m1_pc = m1_precomp::Setup::<Bls12_381>::new_with_powers(
-                m1.powers_of_g1.clone(),
-                m1.powers_of_g2.clone(),
-                vec![subgrid.points.clone()],
-            )
-            .expect("Failed to construct m1pc");
+            let m1_pc =
+                m1_precomp::Setup::<Bls12_381>::new(m1.clone(), vec![subgrid.points.clone()])
+                    .expect("Failed to construct m1pc");
             group.bench_with_input(
                 BenchmarkId::new(format!("m1_{}", n_pts), n_poly),
                 &n_poly,
@@ -121,12 +118,9 @@ fn verify_benchmark(c: &mut Criterion) {
             }
             // Method 1 with precomputes
             {
-                let m1_pc = m1_precomp::Setup::<Bls12_381>::new_with_powers(
-                    m1.powers_of_g1.clone(),
-                    m1.powers_of_g2.clone(),
-                    vec![subgrid.points.clone()],
-                )
-                .expect("Failed to construct m1_pc");
+                let m1_pc =
+                    m1_precomp::Setup::<Bls12_381>::new(m1.clone(), vec![subgrid.points.clone()])
+                        .expect("Failed to construct m1_pc");
                 let mut m1_pc_open_transcript = Transcript::new(b"bench");
                 let m1_pc_open = m1_pc
                     .open(

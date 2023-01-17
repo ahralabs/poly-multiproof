@@ -52,6 +52,18 @@ impl<E: Pairing> Setup<E> {
         polys: &[impl AsRef<[E::ScalarField]>],
         points: &[E::ScalarField],
     ) -> Result<Proof<E>, Error> {
+        let vp = vanishing_polynomial(points.as_ref());
+        self.open_with_vanishing_poly(transcript, evals, polys, points, &vp)
+    }
+
+    fn open_with_vanishing_poly(
+        &self,
+        transcript: &mut Transcript,
+        evals: &[impl AsRef<[E::ScalarField]>],
+        polys: &[impl AsRef<[E::ScalarField]>],
+        points: &[E::ScalarField],
+        vp: &DensePolynomial<E::ScalarField>,
+    ) -> Result<Proof<E>, Error> {
         // Commit the evals and the points to the transcript
         let field_size_bytes = get_field_size::<E::ScalarField>();
         transcribe_points_and_evals(transcript, points, evals, field_size_bytes)?;
@@ -64,11 +76,9 @@ impl<E: Pairing> Setup<E> {
         let fsum = linear_combination::<E::ScalarField>(polys, &gammas)
             .ok_or(Error::NoPolynomialsGiven)?;
 
-        // Compute Z_s
-        let z_s = vanishing_polynomial(points.as_ref());
         // Polynomial divide, the remained would contain the gamma * ri_s,
         // The result is the correct quotient
-        let (q, _) = poly_div_q_r(DensePolynomial { coeffs: fsum }.into(), z_s.into())?;
+        let (q, _) = poly_div_q_r(DensePolynomial { coeffs: fsum }.into(), vp.into())?;
         // Open to the resulting polynomial
         Ok(Proof(
             super::curve_msm::<E::G1>(&self.powers_of_g1, &q)?.into_affine(),
@@ -83,19 +93,34 @@ impl<E: Pairing> Setup<E> {
         evals: &[impl AsRef<[E::ScalarField]>],
         proof: &Proof<E>,
     ) -> Result<bool, Error> {
-        let zeros = vanishing_polynomial(points);
-        let zeros = super::curve_msm::<E::G2>(&self.powers_of_g2, &zeros)?;
+        let vp = vanishing_polynomial(points);
+        let lag_ctx = LagrangeInterpContext::new_from_points(points)?;
+        self.verify_with_lag_ctx_vanishing_poly(
+            transcript, commits, points, evals, proof, &lag_ctx, &vp,
+        )
+    }
+
+    fn verify_with_lag_ctx_vanishing_poly(
+        &self,
+        transcript: &mut Transcript,
+        commits: &[Commitment<E>],
+        points: &[E::ScalarField],
+        evals: &[impl AsRef<[E::ScalarField]>],
+        proof: &Proof<E>,
+        lag_ctx: &LagrangeInterpContext<E::ScalarField>,
+        vp: &DensePolynomial<E::ScalarField>,
+    ) -> Result<bool, Error> {
+        let zeros = super::curve_msm::<E::G2>(&self.powers_of_g2, vp)?;
 
         let field_size_bytes = get_field_size::<E::ScalarField>();
         transcribe_points_and_evals(transcript, points, evals, field_size_bytes)?;
         let gamma = get_challenge(transcript, b"open gamma", field_size_bytes);
         // Aggregate the r_is and then do a single msm of just the ri's and gammas
         let gammas = gen_powers(gamma, evals.len());
-        
+
         // Get the gamma^i r_i polynomials with lagrange interp. This does both the lagrange interp
         // and the gamma mul in one step so we can just lagrange interp once.
-        let ctx = LagrangeInterpContext::new_from_points(points)?;
-        let gamma_ris = ctx.lagrange_interp_linear_combo(evals, &gammas)?.coeffs;
+        let gamma_ris = lag_ctx.lagrange_interp_linear_combo(evals, &gammas)?.coeffs;
         let gamma_ris_pt = super::curve_msm::<E::G1>(&self.powers_of_g1, gamma_ris.as_ref())?;
 
         // Then do a single msm of the gammas and commitments

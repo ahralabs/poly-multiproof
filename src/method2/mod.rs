@@ -45,7 +45,7 @@ impl<E: Pairing> TryFrom<method1::Setup<E>> for Setup<E> {
 pub struct Proof<E: Pairing>(E::G1Affine, E::G1Affine);
 
 impl<E: Pairing> Setup<E> {
-    pub fn new(max_degree: usize, _max_pts: usize, rng: &mut impl RngCore) -> Setup<E> {
+    pub fn new(max_degree: usize, rng: &mut impl RngCore) -> Setup<E> {
         let num_scalars = max_degree + 1;
 
         let x = E::ScalarField::rand(rng);
@@ -156,7 +156,7 @@ mod tests {
 
     #[test]
     fn test_basic_open_works() {
-        let s = Setup::<Bls12_381>::new(256, 0, &mut test_rng());
+        let s = Setup::<Bls12_381>::new(256, &mut test_rng());
         let points = (0..30)
             .map(|_| Fr::rand(&mut test_rng()))
             .collect::<Vec<_>>();
