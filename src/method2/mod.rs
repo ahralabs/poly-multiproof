@@ -19,6 +19,8 @@ use crate::{
     gen_curve_powers, gen_powers, linear_combination, poly_div_q_r, vanishing_polynomial, Error,
 };
 
+pub mod precompute;
+
 #[derive(Clone, Debug)]
 pub struct Setup<E: Pairing> {
     pub powers_of_g1: Vec<E::G1Affine>,
@@ -74,6 +76,18 @@ impl<E: Pairing> Setup<E> {
         polys: &[impl AsRef<[E::ScalarField]>],
         points: &[E::ScalarField],
     ) -> Result<Proof<E>, Error> {
+        let vp = vanishing_polynomial(points.as_ref());
+        self.open_with_vanishing_poly(transcript, evals, polys, points, &vp)
+    }
+
+    fn open_with_vanishing_poly(
+        &self,
+        transcript: &mut Transcript,
+        evals: &[impl AsRef<[E::ScalarField]>],
+        polys: &[impl AsRef<[E::ScalarField]>],
+        points: &[E::ScalarField],
+        vp: &DensePolynomial<E::ScalarField>,
+    ) -> Result<Proof<E>, Error> {
         let field_size_bytes = get_field_size::<E::ScalarField>();
         transcribe_points_and_evals(transcript, points, evals, field_size_bytes)?;
 
@@ -84,8 +98,7 @@ impl<E: Pairing> Setup<E> {
             .ok_or(Error::NoPolynomialsGiven)?;
         let gamma_fis_poly = DensePolynomial::from_coefficients_vec(gamma_fis);
 
-        let z_s = vanishing_polynomial(points.as_ref());
-        let (h, gamma_ris_over_zs) = poly_div_q_r((&gamma_fis_poly).into(), (&z_s).into())?;
+        let (h, gamma_ris_over_zs) = poly_div_q_r((&gamma_fis_poly).into(), (vp).into())?;
 
         let w_1 = crate::curve_msm::<E::G1>(&self.powers_of_g1, &h)?.into_affine();
 
@@ -93,11 +106,11 @@ impl<E: Pairing> Setup<E> {
         let chal_z = get_challenge(transcript, b"open z", field_size_bytes);
 
         let gamma_ri_z = DensePolynomial::from_coefficients_vec(gamma_ris_over_zs)
-            .mul(&z_s)
+            .mul(vp)
             .evaluate(&chal_z);
 
         let f_z = gamma_fis_poly.sub(&DensePolynomial::from_coefficients_vec(vec![gamma_ri_z])); // XXX
-        let l = f_z.sub(&DensePolynomial::from_coefficients_vec(h).mul(z_s.evaluate(&chal_z)));
+        let l = f_z.sub(&DensePolynomial::from_coefficients_vec(h).mul(vp.evaluate(&chal_z)));
 
         let x_minus_z =
             DensePolynomial::from_coefficients_vec(vec![-chal_z, E::ScalarField::one()]);
@@ -115,6 +128,23 @@ impl<E: Pairing> Setup<E> {
         evals: &[impl AsRef<[E::ScalarField]>],
         proof: &Proof<E>,
     ) -> Result<bool, Error> {
+        let vp = vanishing_polynomial(points);
+        let lag_ctx = LagrangeInterpContext::new_from_points(points)?;
+        self.verify_with_lag_ctx_vanishing_poly(
+            transcript, commits, points, evals, proof, &lag_ctx, &vp,
+        )
+    }
+
+    fn verify_with_lag_ctx_vanishing_poly(
+        &self,
+        transcript: &mut Transcript,
+        commits: &[Commitment<E>],
+        points: &[E::ScalarField],
+        evals: &[impl AsRef<[E::ScalarField]>],
+        proof: &Proof<E>,
+        lag_ctx: &LagrangeInterpContext<E::ScalarField>,
+        vp: &DensePolynomial<E::ScalarField>,
+    ) -> Result<bool, Error> {
         let field_size_bytes = get_field_size::<E::ScalarField>();
         transcribe_points_and_evals(transcript, points, evals, field_size_bytes)?;
 
@@ -122,15 +152,13 @@ impl<E: Pairing> Setup<E> {
         transcribe_generic(transcript, b"open W", &proof.0)?;
         let chal_z = get_challenge(transcript, b"open z", field_size_bytes);
 
-        let zeros = vanishing_polynomial(points);
-        let zeros_z = zeros.evaluate(&chal_z);
+        let zeros_z = vp.evaluate(&chal_z);
 
         // Get the r_i polynomials with lagrange interp. These could be precomputed.
         let gammas = gen_powers(gamma, evals.len());
         // Get the gamma^i r_i polynomials with lagrange interp. This does both the lagrange interp
         // and the gamma mul in one step so we can just lagrange interp once.
-        let ctx = LagrangeInterpContext::new_from_points(points)?;
-        let gamma_ris = ctx.lagrange_interp_linear_combo(evals, &gammas)?.coeffs;
+        let gamma_ris = lag_ctx.lagrange_interp_linear_combo(evals, &gammas)?.coeffs;
         let gamma_ris_z = DensePolynomial::from_coefficients_vec(gamma_ris).evaluate(&chal_z);
         let gamma_ris_z_pt = self.powers_of_g1[0].mul(gamma_ris_z);
 
