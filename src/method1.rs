@@ -1,3 +1,4 @@
+use crate::lagrange::LagrangeInterpContext;
 use ark_poly::univariate::DensePolynomial;
 use ark_std::UniformRand;
 use merlin::Transcript;
@@ -9,8 +10,7 @@ use ark_std::rand::RngCore;
 use crate::{get_challenge, get_field_size, transcribe_points_and_evals, Commitment};
 
 use super::{
-    gen_curve_powers, gen_powers, linear_combination, poly_div_q_r,
-    vanishing_polynomial, Error,
+    gen_curve_powers, gen_powers, linear_combination, poly_div_q_r, vanishing_polynomial, Error,
 };
 
 #[derive(Clone, Debug)]
@@ -23,7 +23,6 @@ pub struct Setup<E: Pairing> {
 pub struct Proof<E: Pairing>(E::G1Affine);
 
 impl<E: Pairing> Setup<E> {
-
     pub fn new(max_degree: usize, max_pts: usize, rng: &mut impl RngCore) -> Setup<E> {
         let num_scalars = max_degree + 1;
 
@@ -90,9 +89,11 @@ impl<E: Pairing> Setup<E> {
         let gamma = get_challenge(transcript, b"open gamma", field_size_bytes);
         // Aggregate the r_is and then do a single msm of just the ri's and gammas
         let gammas = gen_powers(gamma, evals.len());
+        
         // Get the gamma^i r_i polynomials with lagrange interp. This does both the lagrange interp
         // and the gamma mul in one step so we can just lagrange interp once.
-        let gamma_ris = super::lagrange_interp_linear_combo(evals, points, &gammas)?.coeffs;
+        let ctx = LagrangeInterpContext::new_from_points(points)?;
+        let gamma_ris = ctx.lagrange_interp_linear_combo(evals, &gammas)?.coeffs;
         let gamma_ris_pt = super::curve_msm::<E::G1>(&self.powers_of_g1, gamma_ris.as_ref())?;
 
         // Then do a single msm of the gammas and commitments

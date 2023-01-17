@@ -1,11 +1,10 @@
 use ark_ec::{pairing::Pairing, scalar_mul::fixed_base::FixedBase, CurveGroup, ScalarMul};
-use ark_ff::{FftField, Field, PrimeField};
+use ark_ff::{Field, PrimeField};
 use ark_poly::{
     univariate::{DenseOrSparsePolynomial, DensePolynomial},
     DenseUVPolynomial,
 };
 use ark_serialize::{CanonicalSerialize, Compress, SerializationError};
-use ark_std::ops::{Add, Mul};
 use ark_std::rand::RngCore;
 use merlin::Transcript;
 #[cfg(test)]
@@ -14,6 +13,8 @@ use rand::thread_rng as test_rng;
 pub mod method1;
 pub mod method1_precomp;
 pub mod method2;
+
+pub mod lagrange;
 
 #[derive(thiserror::Error, Debug, Eq, PartialEq)]
 pub enum Error {
@@ -120,106 +121,6 @@ pub(crate) fn gen_curve_powers<G: ScalarMul + CurveGroup>(
     G::normalize_batch(&powers_of_g_proj)
 }
 
-/// This computes the inverse of each `j`-th lagrange polynomial,
-/// constructed from `points`, evaluated at `points[j]`
-///
-/// Ex: for `x_2`, it would be
-///     `(x_2 - x_1) * (x_2 - x_3) * (x_2 - x_4) * .. * (x_2 - x_n)
-///
-/// This is used so that when the 2nd lagrange polynomial is construction,
-/// we can divide it by this factor so that it evaluates to 1 on `x_2` and
-/// zero at all other `x_i`
-pub(crate) fn lagrange_poly_inverses<F: Field>(points: &[F]) -> Vec<F> {
-    let mut invs = Vec::with_capacity(points.len());
-    for (j, x_j) in points.iter().enumerate() {
-        let mut prod = F::one();
-        for (k, x_k) in points.iter().enumerate() {
-            if j == k {
-                continue;
-            }
-            prod *= *x_j - *x_k;
-        }
-        // TODO: Enforce this constraint
-        invs.push(prod.inverse().expect("Point cannot be zero"));
-    }
-    invs
-}
-
-pub(crate) fn gen_lagrange_polynomials<F: FftField>(points: &[F]) -> Vec<DensePolynomial<F>> {
-    let mut lang = Vec::new();
-    for (j, _x_j) in points.iter().enumerate() {
-        let mut l_poly: DensePolynomial<F> = DensePolynomial::from_coefficients_vec(vec![F::one()]);
-        for (k, x_k) in points.iter().enumerate() {
-            if j == k {
-                continue;
-            }
-            let tmp_poly: DensePolynomial<F> =
-                DensePolynomial::from_coefficients_vec(vec![-(*x_k), F::one()]);
-            // This does fft mul... not sure if it's actually faster
-            l_poly = l_poly.mul(&tmp_poly);
-        }
-        lang.push(l_poly);
-    }
-    lang
-}
-
-pub(crate) fn do_lagrange_interpolation<F: FftField>(
-    evals: &[impl AsRef<[F]>],
-    points: &[F],
-    inverses: &[F],
-    polys: &[DensePolynomial<F>],
-) -> Vec<DensePolynomial<F>> {
-    evals
-        .iter()
-        .map(|evals_i| {
-            let mut res = DensePolynomial::from_coefficients_vec(vec![F::zero()]);
-            for (j, (_x_j, y_j)) in points.iter().zip(evals_i.as_ref().iter()).enumerate() {
-                let l_poly = polys[j].mul(inverses[j] * y_j);
-                res = (&res).add(&l_poly);
-            }
-            res
-        })
-        .collect()
-}
-
-/// Given evals $((y_{1, 1}, \ldots y_{1_k}), \ldots (y_{l, 1}, \ldots y_{l, k}))$, points
-/// $(x_1, \ldots x_k)$, and scalars $(\gamma_1, \ldots, \gamma_l)$, this method
-/// computes $\sum_{i=1}^l \gamma_i r_i$ where $r_i$ is the unique degree $k$ polynomial such that
-/// $r_i(x_j) = y_{i, j}$
-pub(crate) fn lagrange_interp_linear_combo<F: FftField>(
-    evals: &[impl AsRef<[F]>],
-    points: &[F],
-    scalars: &[F],
-) -> Result<DensePolynomial<F>, Error> {
-    let inverses = lagrange_poly_inverses(points);
-    let polys = gen_lagrange_polynomials(points);
-    // The points we want to interpolate to at x_j
-    let mut targets = vec![F::zero(); points.len()];
-    for j in 0..points.len() {
-        for i in 0..evals.len() {
-            // Our target at x_j is \sum gamma_i * y_{i, j}
-            // Does this as_ref() call introduce any overhead?
-            targets[j] += scalars[i] * evals[i].as_ref()[j];
-        }
-    }
-    // Now we just interpolate to targets
-    targets
-        .iter()
-        .enumerate()
-        .map(|(j, target)| polys[j].mul(inverses[j] * target))
-        .reduce(|x, y| x + y)
-        .ok_or(Error::NoPointsGiven)
-
-}
-
-pub(crate) fn lagrange_interp<F: FftField>(
-    evals: &[impl AsRef<[F]>],
-    points: &[F],
-) -> Vec<DensePolynomial<F>> {
-    let inverses = lagrange_poly_inverses(points);
-    let polys = gen_lagrange_polynomials(points);
-    do_lagrange_interpolation(evals, points, &inverses, &polys)
-}
 pub(crate) fn get_field_size<F: Field + CanonicalSerialize>() -> usize {
     F::zero().serialized_size(Compress::Yes)
 }

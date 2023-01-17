@@ -1,3 +1,4 @@
+use crate::lagrange::LagrangeInterpContext;
 use ark_poly::{univariate::DensePolynomial, DenseUVPolynomial, Polynomial};
 use ark_std::{One, UniformRand};
 use merlin::Transcript;
@@ -15,8 +16,7 @@ use crate::{
 };
 
 use super::{
-    gen_curve_powers, gen_powers, lagrange_interp, linear_combination, poly_div_q_r,
-    vanishing_polynomial, Error,
+    gen_curve_powers, gen_powers, linear_combination, poly_div_q_r, vanishing_polynomial, Error,
 };
 
 #[derive(Clone, Debug)]
@@ -129,7 +129,8 @@ impl<E: Pairing> Setup<E> {
         let gammas = gen_powers(gamma, evals.len());
         // Get the gamma^i r_i polynomials with lagrange interp. This does both the lagrange interp
         // and the gamma mul in one step so we can just lagrange interp once.
-        let gamma_ris = super::lagrange_interp_linear_combo(evals, points, &gammas)?.coeffs;
+        let ctx = LagrangeInterpContext::new_from_points(points)?;
+        let gamma_ris = ctx.lagrange_interp_linear_combo(evals, &gammas)?.coeffs;
         let gamma_ris_z = DensePolynomial::from_coefficients_vec(gamma_ris).evaluate(&chal_z);
         let gamma_ris_z_pt = self.powers_of_g1[0].mul(gamma_ris_z);
 

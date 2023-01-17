@@ -19,7 +19,6 @@ fn open_benchmark(c: &mut Criterion) {
     let grid = TestGrid::<Fr>::gen_grid(MAX_LOG_SIZE);
     for n_pts in (1..MAX_SIZE/2).step_by(STEP_SIZE) {
         for n_poly in (1..MAX_SIZE).step_by(STEP_SIZE) {
-            dbg!("Hello?");
             let subgrid = grid.trim(n_poly, n_pts);
             group.bench_with_input(
                 BenchmarkId::new(format!("m1_{}", n_pts), n_poly),
@@ -169,5 +168,5 @@ impl<F: PrimeField> TestGrid<F> {
     }
 }
 
-criterion_group!(benches, open_benchmark, verify_benchmark);
+criterion_group!(benches, verify_benchmark, open_benchmark);
 criterion_main!(benches);
