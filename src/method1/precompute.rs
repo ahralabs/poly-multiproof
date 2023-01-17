@@ -13,6 +13,7 @@ pub struct Setup<E: Pairing> {
     pub inner: super::Setup<E>,
     point_sets: Vec<Vec<E::ScalarField>>,
     vanishing_polys: Vec<DensePolynomial<E::ScalarField>>,
+    g2_zeros: Vec<E::G2>,
     lagrange_ctxs: Vec<LagrangeInterpContext<E::ScalarField>>,
 }
 
@@ -21,10 +22,14 @@ impl<E: Pairing> Setup<E> {
         inner: super::Setup<E>,
         point_sets: Vec<Vec<E::ScalarField>>,
     ) -> Result<Setup<E>, Error> {
-        let vanishing_polys = point_sets
+        let vanishing_polys: Vec<_> = point_sets
             .iter()
             .map(|ps| vanishing_polynomial(ps))
             .collect();
+        let g2_zeros = vanishing_polys
+            .iter()
+            .map(|p| crate::curve_msm::<E::G2>(&inner.powers_of_g2, p))
+            .collect::<Result<Vec<_>, Error>>()?;
         let lagrange_ctxs = point_sets
             .iter()
             .map(|ps| LagrangeInterpContext::new_from_points(ps.as_ref()))
@@ -34,6 +39,7 @@ impl<E: Pairing> Setup<E> {
             inner,
             point_sets,
             vanishing_polys,
+            g2_zeros,
             lagrange_ctxs,
         })
     }
@@ -62,14 +68,14 @@ impl<E: Pairing> Setup<E> {
         evals: &[impl AsRef<[E::ScalarField]>],
         proof: &Proof<E>,
     ) -> Result<bool, Error> {
-        self.inner.verify_with_lag_ctx_vanishing_poly(
+        self.inner.verify_with_lag_ctx_g2_zeros(
             transcript,
             commits,
             &self.point_sets[point_set_index],
             evals,
             proof,
             &self.lagrange_ctxs[point_set_index],
-            &self.vanishing_polys[point_set_index],
+            &self.g2_zeros[point_set_index],
         )
     }
 }

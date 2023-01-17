@@ -94,13 +94,14 @@ impl<E: Pairing> Setup<E> {
         proof: &Proof<E>,
     ) -> Result<bool, Error> {
         let vp = vanishing_polynomial(points);
+        let g2_zeros = super::curve_msm::<E::G2>(&self.powers_of_g2, &vp)?;
         let lag_ctx = LagrangeInterpContext::new_from_points(points)?;
-        self.verify_with_lag_ctx_vanishing_poly(
-            transcript, commits, points, evals, proof, &lag_ctx, &vp,
+        self.verify_with_lag_ctx_g2_zeros(
+            transcript, commits, points, evals, proof, &lag_ctx, &g2_zeros,
         )
     }
 
-    fn verify_with_lag_ctx_vanishing_poly(
+    fn verify_with_lag_ctx_g2_zeros(
         &self,
         transcript: &mut Transcript,
         commits: &[Commitment<E>],
@@ -108,10 +109,8 @@ impl<E: Pairing> Setup<E> {
         evals: &[impl AsRef<[E::ScalarField]>],
         proof: &Proof<E>,
         lag_ctx: &LagrangeInterpContext<E::ScalarField>,
-        vp: &DensePolynomial<E::ScalarField>,
+        g2_zeros: &E::G2,
     ) -> Result<bool, Error> {
-        let zeros = super::curve_msm::<E::G2>(&self.powers_of_g2, vp)?;
-
         let field_size_bytes = get_field_size::<E::ScalarField>();
         transcribe_points_and_evals(transcript, points, evals, field_size_bytes)?;
         let gamma = get_challenge(transcript, b"open gamma", field_size_bytes);
@@ -129,7 +128,7 @@ impl<E: Pairing> Setup<E> {
 
         let g2 = self.powers_of_g2[0];
 
-        Ok(E::pairing(gamma_cm_pt - gamma_ris_pt, g2) == E::pairing(proof.0, zeros))
+        Ok(E::pairing(gamma_cm_pt - gamma_ris_pt, g2) == E::pairing(proof.0, g2_zeros))
     }
 }
 
