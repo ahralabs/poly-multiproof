@@ -12,6 +12,7 @@ use merlin::Transcript;
 use rand::thread_rng as test_rng;
 
 pub mod method1;
+pub mod method1_precomp;
 pub mod method2;
 
 #[derive(thiserror::Error, Debug, Eq, PartialEq)]
@@ -35,6 +36,8 @@ pub enum Error {
     SerializationError,
     #[error("Not enough g2 powers")]
     NotEnoughG2Powers,
+    #[error("Not given any points")]
+    NoPointsGiven,
 }
 
 impl From<SerializationError> for Error {
@@ -45,28 +48,6 @@ impl From<SerializationError> for Error {
 
 #[derive(Debug)]
 pub struct Commitment<E: Pairing>(E::G1Affine);
-
-pub trait MultiOpenKzg<E: Pairing> {
-    type Commitment;
-    type Proof;
-    fn new(max_degree: usize, max_pts: usize, rng: &mut impl RngCore) -> Self;
-    fn commit(&self, poly: impl AsRef<[E::ScalarField]>) -> Result<Self::Commitment, Error>;
-    fn open(
-        &self,
-        transcript: &mut Transcript,
-        evals: &[impl AsRef<[E::ScalarField]>],
-        polys: &[impl AsRef<[E::ScalarField]>],
-        points: &[E::ScalarField],
-    ) -> Result<Self::Proof, Error>;
-    fn verify(
-        &self,
-        transcript: &mut Transcript,
-        commits: &[Self::Commitment],
-        points: &[E::ScalarField],
-        evals: &[impl AsRef<[E::ScalarField]>],
-        proof: &Self::Proof,
-    ) -> Result<bool, Error>;
-}
 
 pub(crate) fn gen_powers<F: Field>(element: F, len: usize) -> Vec<F> {
     let mut powers = vec![F::one(); len];
@@ -199,6 +180,36 @@ pub(crate) fn do_lagrange_interpolation<F: FftField>(
             res
         })
         .collect()
+}
+
+/// Given evals $((y_{1, 1}, \ldots y_{1_k}), \ldots (y_{l, 1}, \ldots y_{l, k}))$, points
+/// $(x_1, \ldots x_k)$, and scalars $(\gamma_1, \ldots, \gamma_l)$, this method
+/// computes $\sum_{i=1}^l \gamma_i r_i$ where $r_i$ is the unique degree $k$ polynomial such that
+/// $r_i(x_j) = y_{i, j}$
+pub(crate) fn lagrange_interp_linear_combo<F: FftField>(
+    evals: &[impl AsRef<[F]>],
+    points: &[F],
+    scalars: &[F],
+) -> Result<DensePolynomial<F>, Error> {
+    let inverses = lagrange_poly_inverses(points);
+    let polys = gen_lagrange_polynomials(points);
+    // The points we want to interpolate to at x_j
+    let mut targets = vec![F::zero(); points.len()];
+    for j in 0..points.len() {
+        for i in 0..evals.len() {
+            // Our target at x_j is \sum gamma_i * y_{i, j}
+            // Does this as_ref() call introduce any overhead?
+            targets[j] += scalars[i] * evals[i].as_ref()[j];
+        }
+    }
+    // Now we just interpolate to targets
+    targets
+        .iter()
+        .enumerate()
+        .map(|(j, target)| polys[j].mul(inverses[j] * target))
+        .reduce(|x, y| x + y)
+        .ok_or(Error::NoPointsGiven)
+
 }
 
 pub(crate) fn lagrange_interp<F: FftField>(

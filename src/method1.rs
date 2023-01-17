@@ -6,10 +6,10 @@ use std::usize;
 use ark_ec::{pairing::Pairing, CurveGroup};
 use ark_std::rand::RngCore;
 
-use crate::{get_challenge, get_field_size, transcribe_points_and_evals, Commitment, MultiOpenKzg};
+use crate::{get_challenge, get_field_size, transcribe_points_and_evals, Commitment};
 
 use super::{
-    gen_curve_powers, gen_powers, lagrange_interp, linear_combination, poly_div_q_r,
+    gen_curve_powers, gen_powers, linear_combination, poly_div_q_r,
     vanishing_polynomial, Error,
 };
 
@@ -22,11 +22,9 @@ pub struct Setup<E: Pairing> {
 #[derive(Debug)]
 pub struct Proof<E: Pairing>(E::G1Affine);
 
-impl<E: Pairing> MultiOpenKzg<E> for Setup<E> {
-    type Commitment = Commitment<E>;
-    type Proof = Proof<E>;
+impl<E: Pairing> Setup<E> {
 
-    fn new(max_degree: usize, max_pts: usize, rng: &mut impl RngCore) -> Setup<E> {
+    pub fn new(max_degree: usize, max_pts: usize, rng: &mut impl RngCore) -> Setup<E> {
         let num_scalars = max_degree + 1;
 
         let x = E::ScalarField::rand(rng);
@@ -41,12 +39,12 @@ impl<E: Pairing> MultiOpenKzg<E> for Setup<E> {
         }
     }
 
-    fn commit(&self, poly: impl AsRef<[E::ScalarField]>) -> Result<Commitment<E>, Error> {
+    pub fn commit(&self, poly: impl AsRef<[E::ScalarField]>) -> Result<Commitment<E>, Error> {
         let res = super::curve_msm::<E::G1>(&self.powers_of_g1, poly.as_ref())?;
         Ok(Commitment(res.into_affine()))
     }
 
-    fn open(
+    pub fn open(
         &self,
         transcript: &mut Transcript,
         evals: &[impl AsRef<[E::ScalarField]>],
@@ -76,7 +74,7 @@ impl<E: Pairing> MultiOpenKzg<E> for Setup<E> {
         ))
     }
 
-    fn verify(
+    pub fn verify(
         &self,
         transcript: &mut Transcript,
         commits: &[Commitment<E>],
@@ -87,17 +85,14 @@ impl<E: Pairing> MultiOpenKzg<E> for Setup<E> {
         let zeros = vanishing_polynomial(points);
         let zeros = super::curve_msm::<E::G2>(&self.powers_of_g2, &zeros)?;
 
-        // Get the r_i polynomials with lagrange interp. These could be precomputed.
-        let ri_s = lagrange_interp(evals, points);
-
         let field_size_bytes = get_field_size::<E::ScalarField>();
         transcribe_points_and_evals(transcript, points, evals, field_size_bytes)?;
         let gamma = get_challenge(transcript, b"open gamma", field_size_bytes);
         // Aggregate the r_is and then do a single msm of just the ri's and gammas
         let gammas = gen_powers(gamma, evals.len());
-        let gamma_ris =
-            linear_combination(&ri_s.iter().map(|i| &i.coeffs).collect::<Vec<_>>(), &gammas)
-                .ok_or(Error::NoPolynomialsGiven)?;
+        // Get the gamma^i r_i polynomials with lagrange interp. This does both the lagrange interp
+        // and the gamma mul in one step so we can just lagrange interp once.
+        let gamma_ris = super::lagrange_interp_linear_combo(evals, points, &gammas)?.coeffs;
         let gamma_ris_pt = super::curve_msm::<E::G1>(&self.powers_of_g1, gamma_ris.as_ref())?;
 
         // Then do a single msm of the gammas and commitments
@@ -114,7 +109,6 @@ impl<E: Pairing> MultiOpenKzg<E> for Setup<E> {
 mod tests {
     use super::Setup;
     use crate::test_rng;
-    use crate::MultiOpenKzg;
     use ark_bls12_381::{Bls12_381, Fr};
     use ark_poly::{univariate::DensePolynomial, DenseUVPolynomial, Polynomial};
     use ark_std::UniformRand;

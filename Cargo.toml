@@ -29,3 +29,9 @@ debug-transcript = ["merlin/debug-transcript"]
 name = "bench"
 harness = false
 
+[[bench]]
+name = "mini_bench"
+harness = false
+
+[package.metadata.docs.rs]
+rustdoc-args = ["--html-in-header", "./doc/katex-header.html"]

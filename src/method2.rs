@@ -11,7 +11,7 @@ use ark_std::rand::RngCore;
 
 use crate::{
     get_challenge, get_field_size, method1, transcribe_generic, transcribe_points_and_evals,
-    MultiOpenKzg, Commitment,
+    Commitment,
 };
 
 use super::{
@@ -44,11 +44,8 @@ impl<E: Pairing> TryFrom<method1::Setup<E>> for Setup<E> {
 #[derive(Clone, Debug)]
 pub struct Proof<E: Pairing>(E::G1Affine, E::G1Affine);
 
-impl<E: Pairing> MultiOpenKzg<E> for Setup<E> {
-    type Commitment = Commitment<E>;
-    type Proof = Proof<E>;
-
-    fn new(max_degree: usize, _max_pts: usize, rng: &mut impl RngCore) -> Setup<E> {
+impl<E: Pairing> Setup<E> {
+    pub fn new(max_degree: usize, _max_pts: usize, rng: &mut impl RngCore) -> Setup<E> {
         let num_scalars = max_degree + 1;
 
         let x = E::ScalarField::rand(rng);
@@ -65,12 +62,12 @@ impl<E: Pairing> MultiOpenKzg<E> for Setup<E> {
         }
     }
 
-    fn commit(&self, poly: impl AsRef<[E::ScalarField]>) -> Result<Commitment<E>, Error> {
+    pub fn commit(&self, poly: impl AsRef<[E::ScalarField]>) -> Result<Commitment<E>, Error> {
         let res = super::curve_msm::<E::G1>(&self.powers_of_g1, poly.as_ref())?;
         Ok(Commitment(res.into_affine()))
     }
 
-    fn open(
+    pub fn open(
         &self,
         transcript: &mut Transcript,
         evals: &[impl AsRef<[E::ScalarField]>],
@@ -110,7 +107,7 @@ impl<E: Pairing> MultiOpenKzg<E> for Setup<E> {
         Ok(Proof(w_1, w_2))
     }
 
-    fn verify(
+    pub fn verify(
         &self,
         transcript: &mut Transcript,
         commits: &[Commitment<E>],
@@ -130,12 +127,9 @@ impl<E: Pairing> MultiOpenKzg<E> for Setup<E> {
 
         // Get the r_i polynomials with lagrange interp. These could be precomputed.
         let gammas = gen_powers(gamma, evals.len());
-        let ri_s = lagrange_interp(evals, points);
-
-        // Aggregate the r_is and then evaluate at chal_z
-        let gamma_ris =
-            linear_combination(&ri_s.iter().map(|i| &i.coeffs).collect::<Vec<_>>(), &gammas)
-                .ok_or(Error::NoPolynomialsGiven)?;
+        // Get the gamma^i r_i polynomials with lagrange interp. This does both the lagrange interp
+        // and the gamma mul in one step so we can just lagrange interp once.
+        let gamma_ris = super::lagrange_interp_linear_combo(evals, points, &gammas)?.coeffs;
         let gamma_ris_z = DensePolynomial::from_coefficients_vec(gamma_ris).evaluate(&chal_z);
         let gamma_ris_z_pt = self.powers_of_g1[0].mul(gamma_ris_z);
 
@@ -153,7 +147,7 @@ impl<E: Pairing> MultiOpenKzg<E> for Setup<E> {
 #[cfg(test)]
 mod tests {
     use super::Setup;
-    use crate::{test_rng, MultiOpenKzg};
+    use crate::test_rng;
     use ark_bls12_381::{Bls12_381, Fr};
     use ark_poly::{univariate::DensePolynomial, DenseUVPolynomial, Polynomial};
     use ark_std::UniformRand;

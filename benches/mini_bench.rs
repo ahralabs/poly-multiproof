@@ -10,14 +10,16 @@ use rand::thread_rng;
 
 const MAX_LOG_SIZE: u32 = 8;
 const MAX_SIZE: usize = 2usize.pow(MAX_LOG_SIZE);
+const STEP_SIZE: usize = MAX_SIZE/4;
 
 fn open_benchmark(c: &mut Criterion) {
     let mut group = c.benchmark_group("open");
     let m1 = method1::Setup::<Bls12_381>::new(MAX_SIZE, MAX_SIZE, &mut thread_rng());
     let m2: method2::Setup<Bls12_381> = m1.clone().try_into().unwrap();
     let grid = TestGrid::<Fr>::gen_grid(MAX_LOG_SIZE);
-    for n_pts in (1..MAX_SIZE/2).step_by(MAX_SIZE/64) {
-        for n_poly in (1..MAX_SIZE).step_by(MAX_SIZE/64) {
+    for n_pts in (1..MAX_SIZE/2).step_by(STEP_SIZE) {
+        for n_poly in (1..MAX_SIZE).step_by(STEP_SIZE) {
+            dbg!("Hello?");
             let subgrid = grid.trim(n_poly, n_pts);
             group.bench_with_input(
                 BenchmarkId::new(format!("m1_{}", n_pts), n_poly),
@@ -66,8 +68,8 @@ fn verify_benchmark(c: &mut Criterion) {
         .map(|c| m1.commit(c).unwrap())
         .collect::<Vec<_>>();
 
-    for n_pts in (1..MAX_SIZE/2).step_by(MAX_SIZE/64) {
-        for n_poly in (1..MAX_SIZE).step_by(MAX_SIZE/64) {
+    for n_pts in (1..MAX_SIZE/2).step_by(STEP_SIZE) {
+        for n_poly in (1..MAX_SIZE).step_by(STEP_SIZE) {
             let subgrid = grid.trim(n_poly, n_pts);
             let subcommits = &commits[..n_poly];
             {
