@@ -5,7 +5,7 @@ use ark_poly::{
 };
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use merlin::Transcript;
-use poly_multiproof::{method1, method1_precomp, method2};
+use poly_multiproof::{method1, method1::precompute as m1_precomp, method2};
 use rand::thread_rng;
 
 const MAX_LOG_SIZE: u32 = 8;
@@ -20,7 +20,7 @@ fn open_benchmark(c: &mut Criterion) {
     for n_pts in (1..MAX_SIZE).step_by(STEP_SIZE) {
         for n_poly in (1..MAX_SIZE).step_by(STEP_SIZE) {
             let subgrid = grid.trim(n_poly, n_pts);
-            let m1_pc = method1_precomp::Setup::<Bls12_381>::new_with_powers(
+            let m1_pc = m1_precomp::Setup::<Bls12_381>::new_with_powers(
                 m1.powers_of_g1.clone(),
                 m1.powers_of_g2.clone(),
                 vec![subgrid.points.clone()],
@@ -121,7 +121,7 @@ fn verify_benchmark(c: &mut Criterion) {
             }
             // Method 1 with precomputes
             {
-                let m1_pc = method1_precomp::Setup::<Bls12_381>::new_with_powers(
+                let m1_pc = m1_precomp::Setup::<Bls12_381>::new_with_powers(
                     m1.powers_of_g1.clone(),
                     m1.powers_of_g2.clone(),
                     vec![subgrid.points.clone()],

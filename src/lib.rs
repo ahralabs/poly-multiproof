@@ -11,7 +11,6 @@ use merlin::Transcript;
 use rand::thread_rng as test_rng;
 
 pub mod method1;
-pub mod method1_precomp;
 pub mod method2;
 
 pub mod lagrange;

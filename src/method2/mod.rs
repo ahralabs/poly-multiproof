@@ -15,7 +15,7 @@ use crate::{
     Commitment,
 };
 
-use super::{
+use crate::{
     gen_curve_powers, gen_powers, linear_combination, poly_div_q_r, vanishing_polynomial, Error,
 };
 
@@ -63,7 +63,7 @@ impl<E: Pairing> Setup<E> {
     }
 
     pub fn commit(&self, poly: impl AsRef<[E::ScalarField]>) -> Result<Commitment<E>, Error> {
-        let res = super::curve_msm::<E::G1>(&self.powers_of_g1, poly.as_ref())?;
+        let res = crate::curve_msm::<E::G1>(&self.powers_of_g1, poly.as_ref())?;
         Ok(Commitment(res.into_affine()))
     }
 
@@ -87,7 +87,7 @@ impl<E: Pairing> Setup<E> {
         let z_s = vanishing_polynomial(points.as_ref());
         let (h, gamma_ris_over_zs) = poly_div_q_r((&gamma_fis_poly).into(), (&z_s).into())?;
 
-        let w_1 = super::curve_msm::<E::G1>(&self.powers_of_g1, &h)?.into_affine();
+        let w_1 = crate::curve_msm::<E::G1>(&self.powers_of_g1, &h)?.into_affine();
 
         transcribe_generic(transcript, b"open W", &w_1)?;
         let chal_z = get_challenge(transcript, b"open z", field_size_bytes);
@@ -103,7 +103,7 @@ impl<E: Pairing> Setup<E> {
             DensePolynomial::from_coefficients_vec(vec![-chal_z, E::ScalarField::one()]);
         let l_quotient = l.div(&x_minus_z);
 
-        let w_2 = super::curve_msm::<E::G1>(&self.powers_of_g1, &l_quotient)?.into_affine();
+        let w_2 = crate::curve_msm::<E::G1>(&self.powers_of_g1, &l_quotient)?.into_affine();
         Ok(Proof(w_1, w_2))
     }
 
@@ -136,7 +136,7 @@ impl<E: Pairing> Setup<E> {
 
         // Then do a single msm of the gammas and commitments
         let cms = commits.iter().map(|i| i.0).collect::<Vec<_>>();
-        let gamma_cm_pt = super::curve_msm::<E::G1>(&cms, gammas.as_ref())?;
+        let gamma_cm_pt = crate::curve_msm::<E::G1>(&cms, gammas.as_ref())?;
 
         let f = gamma_cm_pt - gamma_ris_z_pt - proof.0.mul(zeros_z);
 
