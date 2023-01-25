@@ -14,6 +14,7 @@ pub mod method1;
 pub mod method2;
 
 pub mod lagrange;
+pub mod traits;
 
 #[derive(thiserror::Error, Debug, Eq, PartialEq)]
 pub enum Error {

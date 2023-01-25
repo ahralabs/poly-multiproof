@@ -1,0 +1,13 @@
+[book]
+authors = ["William Arnold"]
+language = "en"
+multilingual = false
+src = "src"
+title = "Polynomial Multiproof Spec"
+
+[output.katex]
+
+[output.html]
+
+[preprocessor.katex]
+renderers = ["html"]
