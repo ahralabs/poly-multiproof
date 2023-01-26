@@ -102,7 +102,7 @@ impl<E: Pairing> Setup<E> {
 
         let w_1 = crate::curve_msm::<E::G1>(&self.powers_of_g1, &h)?.into_affine();
 
-        transcribe_generic(transcript, b"open W", &w_1)?;
+        transcribe_generic(transcript, b"open W1", &w_1)?;
         let chal_z = get_challenge(transcript, b"open z", field_size_bytes);
 
         let gamma_ri_z = DensePolynomial::from_coefficients_vec(gamma_ris_over_zs)
@@ -149,7 +149,7 @@ impl<E: Pairing> Setup<E> {
         transcribe_points_and_evals(transcript, points, evals, field_size_bytes)?;
 
         let gamma = get_challenge(transcript, b"open gamma", field_size_bytes);
-        transcribe_generic(transcript, b"open W", &proof.0)?;
+        transcribe_generic(transcript, b"open W1", &proof.0)?;
         let chal_z = get_challenge(transcript, b"open z", field_size_bytes);
 
         let zeros_z = vp.evaluate(&chal_z);

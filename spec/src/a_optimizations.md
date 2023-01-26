@@ -1,5 +1,7 @@
-# Method 1
-This method is the fastest method for opening, and slightly slower for verification than Method 2. As written in the paper, verification is impractically slow for any appreciable number of polynomials/points. So here, we make an assumption to make the computation reasonable: each polynomial is opened at all the same points, that is (using the notation from the paper) $S_i = S_j = T \;\forall i,j \in [k]$
+# A. Optimizations
+This contains all the optimizations made from the methods of BDFG21 and why they are correct. Please read the paper first 😘. 
+## Method 1
+This method is the fastest method for opening, and slightly slower for verification than Method 2. But, as written in the paper, verification is impractically slow for any appreciable number of polynomials/points. So here, we make an assumption to make the computation reasonable: each polynomial is opened at all the same points, that is (using the notation from the paper) $S_i = S_j = T \;\forall i,j \in [k]$
 
 ### Method 1, Opening
 Let $T = \{ z_1, z_2, \ldots z_t\}$. For brevity, assume sums over $i$ are done as $\sum_{i \in [k]}$

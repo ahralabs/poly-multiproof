@@ -4,7 +4,7 @@ This method biases towards a faster verifying time, and is roughly twice as slow
 The API is exactly the same as in method 1.
 See [A. Optimizations](./a_optimizations) for more details.
 
-### M1Open
+### M2Open
 
 ```rust
 M2Open(transcript: Transcript, 
@@ -27,11 +27,11 @@ $$
 5. Compute $W_1 = [q(x)]_1$ 
 6. Serialize $W_1$ in compressed form and transcribe with the message `open W1`.
 7. Construct $z$ in the same way as we did $\gamma$, reading with message `open z`.
-8. Compute $s = \sum_{i \in [t]} \gamma^{i - 1} r_i(z)$ by computing $Z_\texttt{point\_set\_index} \dot v$ and evaluating it at $z$.
+8. Compute $s = \sum_{i \in [t]} \gamma^{i - 1} r_i(z)$ by computing $(Z_\texttt{point\_set\_index} \cdot v)(z)$. [^1]
 9. Comupute $f_z = -s + \sum_{i \in [t]} f_i$
 10. Compute $l = f_z - h Z_\mathtt{point\_set\_index}$
 11. Compute $b = l / (X - z)$
-12. Compute $W_2 = [b]_1$
+12. Compute $W_2 = [b(x)]_1$
 13. Return $(W_1, W_2)$ and serialize in compressed form
 
 ### M2Verify
@@ -44,20 +44,22 @@ M2Verify(transcript: Transcript,
          point_set_index: usize) -> bool
 ```
 
-Let the evals be $((y_{1, 1}, \ldots y_{1, k}), \ldots (y_{t, 1}, \ldots y_{t, k}))$, commits be $(c_1, \ldots, c_t)$, and the points be $(x_1, \ldots x_k)$.
-Commit $c_i$ must be for the polynomial that evaluates to $(y_{i, 1}, \ldots, y_{i, k})$ at points $(x_1, \ldots, x_k)$.
+Let the evals be $((y_{1, 1}, \ldots y_{1, k}), \ldots (y_{t, 1}, \ldots y_{t, k}))$, commits be $(c_1, \ldots, c_t)$, and the points be $(z_1, \ldots z_k)$.
+Commit $c_i$ must be for the polynomial that evaluates to $(y_{i, 1}, \ldots, y_{i, k})$ at points $(z_1, \ldots, z_k)$.
 
 This method
 1. Transcribes the points/evals the same as in the opening
 2. Reads $\gamma$ same is in the opening
 3. Transcribes $W_1$
 4. Reads $z$ same is in opening
-5. Lagrange interpolate $\phi(X) = \sum_{i \in [k]} \gamma^{i-1} r_i(X)$ using the given evaluations, same as in method 1.
+5. Lagrange interpolate $\phi = \sum_{i \in [t]} \gamma^{i-1} r_i$ using the given evaluations, same as in method 1.
 6. Compute $\alpha = g_1^{\phi(z)}$
 7. Compute $\beta = \sum_{i \in [t]} \gamma^{i-1} c_i$
-8. Compute $F = \beta - \alpha - W_1^{Z_{\texttt{proof\_set\_index}(z)}}$
+8. Compute $F = \beta - \alpha - W_1^{Z_{\texttt{proof\_set\_index}}(z)}$
 9. Compute $g_2^xg_2^{-z} = g_2^{x-z}$
 10. Return `true` if 
 $$
-e(F, g_2) = e(W_1, g2^{x-z})
+e(F, g_2) = e(W_1, g_2^{x-z})
 $$
+
+[^1]: For why this works, see the [A. Optimizations](./a_optimizations.md)
