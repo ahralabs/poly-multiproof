@@ -6,7 +6,11 @@ use ark_poly::{
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use merlin::Transcript;
 use poly_multiproof::{
-    method1, method1::precompute as m1_precomp, method2, method2::precompute as m2_precomp,
+    method1,
+    method1::precompute as m1_precomp,
+    method2,
+    method2::precompute as m2_precomp,
+    traits::{Committer, PolyMultiProof, PolyMultiProofNoPrecomp},
 };
 use rand::thread_rng;
 
@@ -16,8 +20,9 @@ const STEP_SIZE: usize = MAX_SIZE / 32;
 
 fn verify_benchmark(c: &mut Criterion) {
     let mut group = c.benchmark_group("verify");
-    let m1 = method1::Setup::<Bls12_381>::new(MAX_SIZE, MAX_SIZE, &mut thread_rng());
-    let m2: method2::Setup<Bls12_381> = m1.clone().try_into().unwrap();
+    let m1 = method1::M1NoPrecomp::<Bls12_381>::new(MAX_SIZE, MAX_SIZE.into(), &mut thread_rng())
+        .unwrap();
+    let m2: method2::M2NoPrecomp<Bls12_381> = m1.clone().try_into().unwrap();
     let grid = TestGrid::<Fr>::gen_grid(MAX_LOG_SIZE);
     let commits = grid
         .coeffs
@@ -27,9 +32,9 @@ fn verify_benchmark(c: &mut Criterion) {
 
     for n_pts in (1..MAX_SIZE).step_by(STEP_SIZE) {
         let subg_pts = grid.trim_pts(n_pts);
-        let m1_pc = m1_precomp::Setup::new(m1.clone(), vec![subg_pts.points.clone()])
+        let m1_pc = m1_precomp::M1Precomp::from_inner(m1.clone(), vec![subg_pts.points.clone()])
             .expect("Failed to construct m1_pc");
-        let m2_pc = m2_precomp::Setup::new(m2.clone(), vec![subg_pts.points.clone()])
+        let m2_pc = m2_precomp::M2Precomp::from_inner(m2.clone(), vec![subg_pts.points.clone()])
             .expect("Failed to construct m1_pc");
         for n_poly in (1..MAX_SIZE).step_by(STEP_SIZE) {
             let subgrid = subg_pts.trim_poly(n_poly);
@@ -84,6 +89,63 @@ fn verify_benchmark(c: &mut Criterion) {
     }
 }
 
+fn open_benchmark(c: &mut Criterion) {
+    let mut group = c.benchmark_group("open");
+    let m1 = method1::M1NoPrecomp::<Bls12_381>::new(MAX_SIZE, MAX_SIZE.into(), &mut thread_rng())
+        .unwrap();
+    let m2: method2::M2NoPrecomp<Bls12_381> = m1.clone().try_into().unwrap();
+    let grid = TestGrid::<Fr>::gen_grid(MAX_LOG_SIZE);
+
+    for n_pts in (1..MAX_SIZE).step_by(STEP_SIZE) {
+        let subg_pts = grid.trim_pts(n_pts);
+        let m1_pc = m1_precomp::M1Precomp::from_inner(m1.clone(), vec![subg_pts.points.clone()])
+            .expect("Failed to construct m1_pc");
+        let m2_pc = m2_precomp::M2Precomp::from_inner(m2.clone(), vec![subg_pts.points.clone()])
+            .expect("Failed to construct m1_pc");
+        for n_poly in (1..MAX_SIZE).step_by(STEP_SIZE) {
+            let subgrid = subg_pts.trim_poly(n_poly);
+            // Method 1 with precomputes
+            {
+                group.bench_with_input(
+                    BenchmarkId::new(format!("m1_pc_{}", n_pts), n_poly),
+                    &n_poly,
+                    |b, _i| {
+                        b.iter(|| {
+                            m1_pc
+                                .open(
+                                    &mut Transcript::new(b"bench"),
+                                    &subgrid.evals,
+                                    &subgrid.coeffs,
+                                    0,
+                                )
+                                .unwrap();
+                        })
+                    },
+                );
+            }
+            // Method 2 with precomputes
+            {
+                group.bench_with_input(
+                    BenchmarkId::new(format!("m2_pc_{}", n_pts), n_poly),
+                    &n_poly,
+                    |b, _i| {
+                        b.iter(|| {
+                            m2_pc
+                                .open(
+                                    &mut Transcript::new(b"bench"),
+                                    &subgrid.evals,
+                                    &subgrid.coeffs,
+                                    0,
+                                )
+                                .unwrap();
+                        })
+                    },
+                );
+            }
+        }
+    }
+}
+
 struct TestGrid<F: Clone> {
     coeffs: Vec<Vec<F>>,
     evals: Vec<Vec<F>>,
@@ -123,5 +185,5 @@ impl<F: PrimeField> TestGrid<F> {
     }
 }
 
-criterion_group!(benches, verify_benchmark);
+criterion_group!(benches, verify_benchmark, open_benchmark);
 criterion_main!(benches);

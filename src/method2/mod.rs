@@ -1,4 +1,7 @@
-use crate::lagrange::LagrangeInterpContext;
+use crate::{
+    lagrange::LagrangeInterpContext,
+    traits::{Committer, PolyMultiProofNoPrecomp},
+};
 use ark_poly::{univariate::DensePolynomial, DenseUVPolynomial, Polynomial};
 use ark_std::{One, UniformRand};
 use merlin::Transcript;
@@ -22,16 +25,16 @@ use crate::{
 pub mod precompute;
 
 #[derive(Clone, Debug)]
-pub struct Setup<E: Pairing> {
+pub struct M2NoPrecomp<E: Pairing> {
     pub powers_of_g1: Vec<E::G1Affine>,
     pub g2: E::G2Affine,
     pub g2x: E::G2Affine,
 }
 
-impl<E: Pairing> TryFrom<method1::Setup<E>> for Setup<E> {
+impl<E: Pairing> TryFrom<method1::M1NoPrecomp<E>> for M2NoPrecomp<E> {
     type Error = Error;
 
-    fn try_from(value: method1::Setup<E>) -> Result<Self, Self::Error> {
+    fn try_from(value: method1::M1NoPrecomp<E>) -> Result<Self, Self::Error> {
         if value.powers_of_g2.len() < 2 {
             return Err(Error::NotEnoughG2Powers);
         }
@@ -46,40 +49,7 @@ impl<E: Pairing> TryFrom<method1::Setup<E>> for Setup<E> {
 #[derive(Clone, Debug)]
 pub struct Proof<E: Pairing>(E::G1Affine, E::G1Affine);
 
-impl<E: Pairing> Setup<E> {
-    pub fn new(max_degree: usize, rng: &mut impl RngCore) -> Setup<E> {
-        let num_scalars = max_degree + 1;
-
-        let x = E::ScalarField::rand(rng);
-        let x_powers = gen_powers(x, num_scalars);
-
-        let powers_of_g1 = gen_curve_powers::<E::G1>(x_powers.as_ref(), rng);
-        let g2 = E::G2::rand(rng).into_affine();
-        let g2x = (g2 * x).into_affine();
-
-        Setup {
-            powers_of_g1,
-            g2,
-            g2x,
-        }
-    }
-
-    pub fn commit(&self, poly: impl AsRef<[E::ScalarField]>) -> Result<Commitment<E>, Error> {
-        let res = crate::curve_msm::<E::G1>(&self.powers_of_g1, poly.as_ref())?;
-        Ok(Commitment(res.into_affine()))
-    }
-
-    pub fn open(
-        &self,
-        transcript: &mut Transcript,
-        evals: &[impl AsRef<[E::ScalarField]>],
-        polys: &[impl AsRef<[E::ScalarField]>],
-        points: &[E::ScalarField],
-    ) -> Result<Proof<E>, Error> {
-        let vp = vanishing_polynomial(points.as_ref());
-        self.open_with_vanishing_poly(transcript, evals, polys, points, &vp)
-    }
-
+impl<E: Pairing> M2NoPrecomp<E> {
     fn open_with_vanishing_poly(
         &self,
         transcript: &mut Transcript,
@@ -120,21 +90,6 @@ impl<E: Pairing> Setup<E> {
         Ok(Proof(w_1, w_2))
     }
 
-    pub fn verify(
-        &self,
-        transcript: &mut Transcript,
-        commits: &[Commitment<E>],
-        points: &[E::ScalarField],
-        evals: &[impl AsRef<[E::ScalarField]>],
-        proof: &Proof<E>,
-    ) -> Result<bool, Error> {
-        let vp = vanishing_polynomial(points);
-        let lag_ctx = LagrangeInterpContext::new_from_points(points)?;
-        self.verify_with_lag_ctx_vanishing_poly(
-            transcript, commits, points, evals, proof, &lag_ctx, &vp,
-        )
-    }
-
     fn verify_with_lag_ctx_vanishing_poly(
         &self,
         transcript: &mut Transcript,
@@ -173,10 +128,69 @@ impl<E: Pairing> Setup<E> {
     }
 }
 
+impl<E: Pairing> Committer<E> for M2NoPrecomp<E> {
+    fn commit(&self, poly: impl AsRef<[E::ScalarField]>) -> Result<Commitment<E>, Error> {
+        let res = crate::curve_msm::<E::G1>(&self.powers_of_g1, poly.as_ref())?;
+        Ok(Commitment(res.into_affine()))
+    }
+}
+
+impl<E: Pairing> PolyMultiProofNoPrecomp<E> for M2NoPrecomp<E> {
+    type Proof = Proof<E>;
+
+    fn new(
+        max_coeffs: usize,
+        _max_pts: Option<usize>,
+        rng: &mut impl RngCore,
+    ) -> Result<M2NoPrecomp<E>, Error> {
+        let x = E::ScalarField::rand(rng);
+        let x_powers = gen_powers(x, max_coeffs);
+
+        let powers_of_g1 = gen_curve_powers::<E::G1>(x_powers.as_ref(), rng);
+        let g2 = E::G2::rand(rng).into_affine();
+        let g2x = (g2 * x).into_affine();
+
+        Ok(M2NoPrecomp {
+            powers_of_g1,
+            g2,
+            g2x,
+        })
+    }
+
+    fn open(
+        &self,
+        transcript: &mut Transcript,
+        evals: &[impl AsRef<[E::ScalarField]>],
+        polys: &[impl AsRef<[E::ScalarField]>],
+        points: &[E::ScalarField],
+    ) -> Result<Proof<E>, Error> {
+        let vp = vanishing_polynomial(points.as_ref());
+        self.open_with_vanishing_poly(transcript, evals, polys, points, &vp)
+    }
+
+    fn verify(
+        &self,
+        transcript: &mut Transcript,
+        commits: &[Commitment<E>],
+        points: &[E::ScalarField],
+        evals: &[impl AsRef<[E::ScalarField]>],
+        proof: &Proof<E>,
+    ) -> Result<bool, Error> {
+        let vp = vanishing_polynomial(points);
+        let lag_ctx = LagrangeInterpContext::new_from_points(points)?;
+        self.verify_with_lag_ctx_vanishing_poly(
+            transcript, commits, points, evals, proof, &lag_ctx, &vp,
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::Setup;
-    use crate::test_rng;
+    use super::M2NoPrecomp;
+    use crate::{
+        test_rng,
+        traits::{Committer, PolyMultiProofNoPrecomp},
+    };
     use ark_bls12_381::{Bls12_381, Fr};
     use ark_poly::{univariate::DensePolynomial, DenseUVPolynomial, Polynomial};
     use ark_std::UniformRand;
@@ -184,7 +198,7 @@ mod tests {
 
     #[test]
     fn test_basic_open_works() {
-        let s = Setup::<Bls12_381>::new(256, &mut test_rng());
+        let s = M2NoPrecomp::<Bls12_381>::new(256, None, &mut test_rng()).unwrap();
         let points = (0..30)
             .map(|_| Fr::rand(&mut test_rng()))
             .collect::<Vec<_>>();

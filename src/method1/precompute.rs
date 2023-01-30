@@ -6,22 +6,23 @@ use ark_ec::pairing::Pairing;
 
 use super::{vanishing_polynomial, Error, Proof};
 use crate::lagrange::LagrangeInterpContext;
+use crate::traits::{Committer, PolyMultiProof, PolyMultiProofNoPrecomp};
 use crate::Commitment;
 
 #[derive(Clone, Debug)]
-pub struct Setup<E: Pairing> {
-    pub inner: super::Setup<E>,
+pub struct M1Precomp<E: Pairing> {
+    pub inner: super::M1NoPrecomp<E>,
     point_sets: Vec<Vec<E::ScalarField>>,
     vanishing_polys: Vec<DensePolynomial<E::ScalarField>>,
     g2_zeros: Vec<E::G2>,
     lagrange_ctxs: Vec<LagrangeInterpContext<E::ScalarField>>,
 }
 
-impl<E: Pairing> Setup<E> {
-    pub fn new(
-        inner: super::Setup<E>,
-        point_sets: Vec<Vec<E::ScalarField>>,
-    ) -> Result<Setup<E>, Error> {
+impl<E: Pairing> M1Precomp<E> {
+    pub fn from_inner(
+        inner: super::M1NoPrecomp<E>,
+        point_sets: Vec<Vec<<E as Pairing>::ScalarField>>,
+    ) -> Result<Self, Error> {
         let vanishing_polys: Vec<_> = point_sets
             .iter()
             .map(|ps| vanishing_polynomial(ps))
@@ -35,7 +36,7 @@ impl<E: Pairing> Setup<E> {
             .map(|ps| LagrangeInterpContext::new_from_points(ps.as_ref()))
             .collect::<Result<Vec<_>, Error>>()?;
 
-        Ok(Setup {
+        Ok(M1Precomp {
             inner,
             point_sets,
             vanishing_polys,
@@ -43,14 +44,45 @@ impl<E: Pairing> Setup<E> {
             lagrange_ctxs,
         })
     }
+}
 
-    pub fn open(
+impl<E: Pairing> Committer<E> for M1Precomp<E> {
+    fn commit(
+        &self,
+        poly: impl AsRef<[<E as Pairing>::ScalarField]>,
+    ) -> Result<Commitment<E>, Error> {
+        self.inner.commit(poly)
+    }
+}
+
+impl<E: Pairing> PolyMultiProof<E> for M1Precomp<E> {
+    type Proof = Proof<E>;
+
+    fn new(
+        max_coeffs: usize,
+        point_sets: Vec<Vec<<E as Pairing>::ScalarField>>,
+        r: &mut impl ark_std::rand::RngCore,
+    ) -> Result<Self, Error> {
+        let inner = super::M1NoPrecomp::new(
+            max_coeffs,
+            point_sets
+                .iter()
+                .map(|set| set.len())
+                .max_by(Ord::cmp)
+                .ok_or(Error::NoPointsGiven)?
+                .into(),
+            r,
+        )?;
+        Self::from_inner(inner, point_sets)
+    }
+
+    fn open(
         &self,
         transcript: &mut Transcript,
-        evals: &[impl AsRef<[E::ScalarField]>],
-        polys: &[impl AsRef<[E::ScalarField]>],
+        evals: &[impl AsRef<[<E as Pairing>::ScalarField]>],
+        polys: &[impl AsRef<[<E as Pairing>::ScalarField]>],
         point_set_index: usize,
-    ) -> Result<Proof<E>, Error> {
+    ) -> Result<Self::Proof, Error> {
         self.inner.open_with_vanishing_poly(
             transcript,
             evals,
@@ -60,13 +92,13 @@ impl<E: Pairing> Setup<E> {
         )
     }
 
-    pub fn verify(
+    fn verify(
         &self,
         transcript: &mut Transcript,
         commits: &[Commitment<E>],
         point_set_index: usize,
-        evals: &[impl AsRef<[E::ScalarField]>],
-        proof: &Proof<E>,
+        evals: &[impl AsRef<[<E as Pairing>::ScalarField]>],
+        proof: &Self::Proof,
     ) -> Result<bool, Error> {
         self.inner.verify_with_lag_ctx_g2_zeros(
             transcript,
@@ -82,8 +114,11 @@ impl<E: Pairing> Setup<E> {
 
 #[cfg(test)]
 mod tests {
-    use super::Setup;
-    use crate::{method1, test_rng};
+    use super::M1Precomp;
+    use crate::{
+        test_rng,
+        traits::{Committer, PolyMultiProof},
+    };
     use ark_bls12_381::{Bls12_381, Fr};
     use ark_poly::{univariate::DensePolynomial, DenseUVPolynomial, Polynomial};
     use ark_std::UniformRand;
@@ -94,8 +129,8 @@ mod tests {
         let points = (0..30)
             .map(|_| Fr::rand(&mut test_rng()))
             .collect::<Vec<_>>();
-        let inner = method1::Setup::new(256, 32, &mut test_rng());
-        let s = Setup::<Bls12_381>::new(inner, vec![points.clone()]).expect("Failed to construct");
+        let s = M1Precomp::<Bls12_381>::new(256, vec![points.clone()], &mut test_rng())
+            .expect("Failed to construct");
         let polys = (0..20)
             .map(|_| DensePolynomial::<Fr>::rand(50, &mut test_rng()))
             .collect::<Vec<_>>();
@@ -106,7 +141,7 @@ mod tests {
         let coeffs = polys.iter().map(|p| p.coeffs.clone()).collect::<Vec<_>>();
         let commits = coeffs
             .iter()
-            .map(|p| s.inner.commit(p).expect("Commit failed"))
+            .map(|p| s.commit(p).expect("Commit failed"))
             .collect::<Vec<_>>();
         let mut transcript = Transcript::new(b"testing");
         let open = s

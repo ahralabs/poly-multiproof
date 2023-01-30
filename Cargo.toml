@@ -26,14 +26,6 @@ print-trace = ["ark-std/print-trace"]
 debug-transcript = ["merlin/debug-transcript"]
 
 [[bench]]
-name = "bench"
-harness = false
-
-[[bench]]
-name = "mini_bench"
-harness = false
-
-[[bench]]
 name = "precomp_bench"
 harness = false
 
