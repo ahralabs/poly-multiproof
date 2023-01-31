@@ -48,7 +48,7 @@ impl From<SerializationError> for Error {
 }
 
 #[derive(Debug)]
-pub struct Commitment<E: Pairing>(E::G1Affine);
+pub struct Commitment<E: Pairing>(pub E::G1Affine);
 
 pub(crate) fn gen_powers<F: Field>(element: F, len: usize) -> Vec<F> {
     let mut powers = vec![F::one(); len];

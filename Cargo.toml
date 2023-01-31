@@ -19,6 +19,7 @@ thiserror = "1"
 ark-bls12-381 = "0.4.0-alpha.2"
 criterion = "0.4"
 rand = { version = "*", features = ["getrandom", "std"] }
+rayon = "1.6"
 
 [features]
 asm = ["ark-ff/asm"]
