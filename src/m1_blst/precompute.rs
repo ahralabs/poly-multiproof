@@ -3,10 +3,13 @@ use ark_poly::univariate::DensePolynomial;
 use merlin::Transcript;
 use std::usize;
 
+#[cfg(feature = "parallel")]
+use rayon::prelude::*;
+
 use super::{fast_msm, vanishing_polynomial, Error, Proof};
 use crate::lagrange::LagrangeInterpContext;
 use crate::traits::{Committer, PolyMultiProof, PolyMultiProofNoPrecomp};
-use crate::Commitment;
+use crate::{Commitment, cfg_iter};
 
 pub struct M1Precomp {
     pub inner: super::M1NoPrecomp,
@@ -18,18 +21,15 @@ pub struct M1Precomp {
 
 impl M1Precomp {
     pub fn from_inner(inner: super::M1NoPrecomp, point_sets: Vec<Vec<Fr>>) -> Result<Self, Error> {
-        let vanishing_polys: Vec<_> = point_sets
-            .iter()
-            .map(|ps| vanishing_polynomial(ps))
+        let vanishing_polys: Vec<_> = cfg_iter!(point_sets)
+            .map(|(_, ps)| vanishing_polynomial(ps))
             .collect();
-        let g2_zeros = vanishing_polys
-            .iter()
-            .map(|p| fast_msm::prep_scalars(&p))
+        let g2_zeros = cfg_iter!(vanishing_polys)
+            .map(|(_, p)| fast_msm::prep_scalars(&p))
             .map(|p| fast_msm::g2_msm(&inner.prepped_g2s, &p, inner.powers_of_g2.len()))
             .collect::<Result<Vec<_>, Error>>()?;
-        let lagrange_ctxs = point_sets
-            .iter()
-            .map(|ps| LagrangeInterpContext::new_from_points(ps.as_ref()))
+        let lagrange_ctxs = cfg_iter!(point_sets)
+            .map(|(_, ps)| LagrangeInterpContext::new_from_points(ps.as_ref()))
             .collect::<Result<Vec<_>, Error>>()?;
 
         Ok(M1Precomp {

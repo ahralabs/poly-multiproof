@@ -184,3 +184,16 @@ pub(crate) fn get_challenge<F: PrimeField>(
     transcript.challenge_bytes(label, &mut challenge_bytes);
     F::from_be_bytes_mod_order(&challenge_bytes)
 }
+
+#[macro_export]
+macro_rules! cfg_iter {
+    ($e: expr) => {{
+        #[cfg(feature = "parallel")]
+        let result = $e.par_iter().enumerate();
+
+        #[cfg(not(feature = "parallel"))]
+        let result = $e.iter().enumerate();
+
+        result
+    }};
+}

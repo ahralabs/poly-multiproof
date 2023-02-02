@@ -11,13 +11,14 @@ use ark_std::{end_timer, start_timer};
 use merlin::Transcript;
 use poly_multiproof::{
     traits::{Committer, PolyMultiProof},
-    Commitment,
+    Commitment, cfg_iter,
 };
 #[cfg(feature = "blst")]
 use poly_multiproof::m1_blst::precompute::M1Precomp;
 #[cfg(not(feature = "blst"))]
 use poly_multiproof::method1::precompute::M1Precomp;
 use rand::{thread_rng, RngCore};
+#[cfg(feature = "parallel")]
 use rayon::prelude::*;
 
 //******************************
@@ -96,15 +97,14 @@ impl Grid {
         let domain_w = GeneralEvaluationDomain::<Fr>::new(GRID_WIDTH).unwrap();
 
         let poly_t = start_timer!(|| "computing polynomials from evals");
-        let polys: Vec<_> = interp_rows.par_iter().map(|row| domain_w.ifft(&row)).collect();
+        let polys: Vec<_> = cfg_iter!(interp_rows).map(|(_, row)| domain_w.ifft(&row)).collect();
         end_timer!(poly_t);
 
         let commit_t = start_timer!(|| "computing commitments");
         let commit_t1 = start_timer!(|| "committing to underlying rows");
-        let mut commits: Vec<_> = polys
-            .par_iter()
+        let mut commits: Vec<_> = cfg_iter!(polys)
             .step_by(2)
-            .map(|row| c.commit(row).expect("Commit failed").0.into_group())
+            .map(|(_, row)| c.commit(row).expect("Commit failed").0.into_group())
             .collect();
         end_timer!(commit_t1);
 
@@ -153,9 +153,8 @@ fn main() {
         .collect();
 
     let open_t = start_timer!(|| "opening to grid");
-    let opens: Vec<_> = coords
-        .par_iter()
-        .map(|(i, j)| {
+    let opens: Vec<_> = cfg_iter!(coords)
+        .map(|(_, (i, j))| {
             // j is the point set index
             let start_i = i * CHUNK_H;
             let start_j = j * CHUNK_W;
@@ -177,7 +176,7 @@ fn main() {
     end_timer!(open_t);
 
     let veri_t = start_timer!(|| "verifying grid");
-    opens.par_iter().for_each(|(i, j, proof)| {
+    cfg_iter!(opens).for_each(|(_, (i, j, proof))| {
         let start_i = *i * CHUNK_H;
         let start_j = *j * CHUNK_W;
         let end_i = start_i + CHUNK_H;

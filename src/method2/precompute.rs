@@ -5,10 +5,13 @@ use std::usize;
 
 use ark_ec::pairing::Pairing;
 
+#[cfg(feature = "parallel")]
+use rayon::prelude::*;
+
 use super::{vanishing_polynomial, Error, Proof};
 use crate::lagrange::LagrangeInterpContext;
 use crate::traits::{Committer, PolyMultiProof, PolyMultiProofNoPrecomp};
-use crate::Commitment;
+use crate::{cfg_iter, Commitment};
 
 #[derive(Clone, Debug)]
 pub struct M2Precomp<E: Pairing> {
@@ -23,13 +26,11 @@ impl<E: Pairing> M2Precomp<E> {
         inner: super::M2NoPrecomp<E>,
         point_sets: Vec<Vec<E::ScalarField>>,
     ) -> Result<Self, Error> {
-        let vanishing_polys = point_sets
-            .iter()
-            .map(|ps| vanishing_polynomial(ps))
+        let vanishing_polys = cfg_iter!(point_sets)
+            .map(|(_, ps)| vanishing_polynomial(ps))
             .collect();
-        let lagrange_ctxs = point_sets
-            .iter()
-            .map(|ps| LagrangeInterpContext::new_from_points(ps.as_ref()))
+        let lagrange_ctxs = cfg_iter!(point_sets)
+            .map(|(_, ps)| LagrangeInterpContext::new_from_points(ps.as_ref()))
             .collect::<Result<Vec<_>, Error>>()?;
 
         Ok(M2Precomp {

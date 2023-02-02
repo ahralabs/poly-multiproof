@@ -3,6 +3,10 @@ use std::ops::Mul;
 use ark_ff::FftField;
 use ark_poly::{univariate::DensePolynomial, DenseUVPolynomial, Polynomial};
 
+use crate::cfg_iter;
+#[cfg(feature = "parallel")]
+use rayon::prelude::*;
+
 use crate::Error;
 
 #[derive(Debug, Clone)]
@@ -14,32 +18,34 @@ impl<F: FftField> LagrangeInterpContext<F> {
     pub fn new_from_points(points: &[F]) -> Result<Self, Error> {
         // Generate the non-normalized lagrange polynomials. These are zero on all points other
         // than the target point, and some nonzero value on that point.
-        let mut non_normalized_polys = Vec::new();
-        for (j, _x_j) in points.iter().enumerate() {
-            let mut l_poly: DensePolynomial<F> =
-                DensePolynomial::from_coefficients_vec(vec![F::one()]);
-            for (k, x_k) in points.iter().enumerate() {
-                if j == k {
-                    continue;
+        let non_normalized_polys: Vec<_> = cfg_iter!(points)
+            .map(|(j, _x_j)| {
+                let mut l_poly: DensePolynomial<F> =
+                    DensePolynomial::from_coefficients_vec(vec![F::one()]);
+                for (k, x_k) in points.iter().enumerate() {
+                    if j == k {
+                        continue;
+                    }
+                    let tmp_poly: DensePolynomial<F> =
+                        DensePolynomial::from_coefficients_vec(vec![-(*x_k), F::one()]);
+                    // This does fft mul... not sure if it's actually faster
+                    l_poly = l_poly.mul(&tmp_poly);
                 }
-                let tmp_poly: DensePolynomial<F> =
-                    DensePolynomial::from_coefficients_vec(vec![-(*x_k), F::one()]);
-                // This does fft mul... not sure if it's actually faster
-                l_poly = l_poly.mul(&tmp_poly);
-            }
-            non_normalized_polys.push(l_poly);
-        }
+                l_poly
+            })
+            .collect();
 
-        let mut lag_polys = Vec::new();
-        for (i, non_normed) in non_normalized_polys.iter().enumerate() {
-            lag_polys.push(
+        let lag_polys = cfg_iter!(non_normalized_polys)
+            .map(|(i, non_normed)| {
+                // Evaluate at target, divide by result
+                // so that the polynomial evaluates to 1 at the target
                 non_normed
-                    * non_normed
-                        .evaluate(&points[i])
-                        .inverse()
-                        .ok_or(Error::DivisorIsZero)?,
-            );
-        }
+                    .evaluate(&points[i])
+                    .inverse()
+                    .ok_or(Error::DivisorIsZero)
+                    .map(|v| non_normed * v)
+            })
+            .collect::<Result<Vec<_>, Error>>()?;
         Ok(Self { lag_polys })
     }
 
