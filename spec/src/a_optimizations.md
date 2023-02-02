@@ -37,7 +37,8 @@ F :&=\prod_i e(\gamma^{i-1} (c_i [r_i(x)]_1), Z_i) \\
 $$
 Constraining the points lets them compute a single pairing instead of $k$! Now let's look at each side of pairing. 
 To compute the LHS, they need to compute $\sum_i \gamma^{i-1} r_i$. Sadly, there's no nice way around this here, it must be interpolated, but they can interpolate $\sum_i \gamma^{i-1} r_i$ once rather than interpolate each $r_i$.
-By splitting the sum here, they can just do $2d$ $\mathbb{G}_1$ scalar multiplications, one in $\sum\gamma^{i-1} c_i$ and one in $\left[ \sum_i \gamma^{i-1} r_i(x) \right]_1$, instead of doing $(k+1)d$ scalar multiplications naively.
+By splitting the sum here, they can just do $2|T|$ $\mathbb{G}_1$ scalar multiplications: $|T|$ in $\sum\gamma^{i-1} c_i$ and $|T|$ in $\left[ \sum_i \gamma^{i-1} r_i(x) \right]_1$ (since each $r_i$ is of degree at most $|T|$).
+
 Then all they're left with is the single pairing.
 Next they have to compute $e(W, [Z_T(x)]_2)$. Computing $Z_T$ is pretty straightforward, and all they are left to do is the $d$ $\mathbb{G}_2$ scalar multiplications.
 
@@ -46,7 +47,7 @@ This leaves us with the following amount of operations (other operations impact 
 | Operation                | Open quantity | Verify quantity     |
 | ------------------------ | ------------- | ------------------- |
 | Polynomial Interpolation | 0             | 1                   |
-| G1 Scalar Multiplication | d             | $2d$                |
+| G1 Scalar Multiplication | d             | $2|T|$              |
 | G2 Scalar Multipcication | 0             | $d$ (can be cached) |
 | Pairing                  | 0             | 2                   | 
 
@@ -86,7 +87,7 @@ F :&= -Z_T(z) W + \sum_i \gamma^{i-1} Z_{T\setminus S_i}(z) (c_i - [r_i(z)]_1) \
  &= -Z_T(z) W + \sum_i \gamma^{i-1} c_i - \left[\sum_i \gamma^{i-1} r_i(z)\right]_1) \\
 \end{align}
 $$
-To do this, they do lagrange interpolation of  $\sum_i \gamma^{i-1} r_i(X)$, evaluate it at $z$, then do the single $\mathbb{G}_1$ scalar multiplication. Computing $\sum_i \gamma^{i-1} c_i$ is $d$ $\mathbb{G_1}$ scalar multiplications, and one more for computing $-Z_T(z) W$.
+To do this, they do lagrange interpolation of  $\sum_i \gamma^{i-1} r_i(X)$, evaluate it at $z$, then do the single $\mathbb{G}_1$ scalar multiplication. Computing $\sum_i \gamma^{i-1} c_i$ is $|T|$ $\mathbb{G_1}$ scalar multiplications, and one more for computing $-Z_T(z) W$.
 Next the verifier checks
 $e(F, g_2) = e(W', [x-z]_2)$
 Which involves 2 pairings, and 2 $\mathbb{G_2}$ scalar multiplications, yielding
@@ -94,7 +95,7 @@ Which involves 2 pairings, and 2 $\mathbb{G_2}$ scalar multiplications, yielding
 | Operation                | Open quantity | Verify quantity |
 | ------------------------ | ------------- | --------------- |
 | Polynomial Interpolation | 0             | $1$             |
-| G1 Scalar Multiplication | $2d$          | $2 + d$         |
+| G1 Scalar Multiplication | $2d$          | $2 + |T|$       |
 | G2 Scalar Multipcication | 0             | $2$             |
 | Pairing                  | 0             | $2$             |
 
@@ -103,6 +104,6 @@ Comparing the two methods, we get
 | Operation                | Method 1 Open | Method 2 Open | Method 1 Verify     | Method 2 Verify |
 | ------------------------ | ------------- | ------------- | ------------------- | --------------- |
 | Polynomial Interpolation | 0             | 0             | 1                   | $1$             |
-| G1 Scalar Multiplication | d             | $2d$          | $2d$                | $2 + d$         |
+| G1 Scalar Multiplication | d             | $2d$          | $2|T|$              | $2 + |T|$        |
 | G2 Scalar Multipcication | 0             | 0             | $d$ (can be cached) | $2$             |
 | Pairing                  | 0             | 0             | 2                   | $2$             |
