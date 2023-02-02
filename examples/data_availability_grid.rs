@@ -2,18 +2,21 @@
 //! This packs bytes into scalars by chunking into groups of 31 bytes and 0-padding.
 //! Then it puts them into a grid sized 256x256
 
-use ark_bls12_381::Fr;
-use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup};
+use ark_bls12_381::{Bls12_381, Fr};
+use ark_ec::{AffineRepr, CurveGroup};
 use ark_ff::{PrimeField, Zero};
 use ark_poly::{EvaluationDomain, GeneralEvaluationDomain, Radix2EvaluationDomain};
 use ark_serialize::{CanonicalSerialize, Compress};
 use ark_std::{end_timer, start_timer};
 use merlin::Transcript;
 use poly_multiproof::{
-    method1::precompute::M1Precomp,
     traits::{Committer, PolyMultiProof},
     Commitment,
 };
+#[cfg(feature = "blst")]
+use poly_multiproof::m1_blst::precompute::M1Precomp;
+#[cfg(not(feature = "blst"))]
+use poly_multiproof::method1::precompute::M1Precomp;
 use rand::{thread_rng, RngCore};
 use rayon::prelude::*;
 
@@ -27,27 +30,27 @@ const GRID_WIDTH: usize = 256;
 const GRID_HEIGHT: usize = 256;
 // The number of pieces to break the grid into horizontally.
 // The smaller this is, the more time PMP setup will take, but the faster opening will be.
-const N_CHUNKS_W: usize = 4;
+const N_CHUNKS_W: usize = 32;
 // The number of pieces to break the grid into vertically
 // The bigger this is, the faster verification will be
-const N_CHUNKS_H: usize = 64;
+const N_CHUNKS_H: usize = 32;
 
 // Can leave these alone
 const CHUNK_W: usize = GRID_WIDTH / N_CHUNKS_W;
 const CHUNK_H: usize = GRID_HEIGHT / N_CHUNKS_H;
 
-struct Grid<E: Pairing> {
-    pub evals: Vec<Vec<E::ScalarField>>,
-    pub polys: Vec<Vec<E::ScalarField>>,
-    pub commits: Vec<Commitment<E>>,
+struct Grid {
+    pub evals: Vec<Vec<Fr>>,
+    pub polys: Vec<Vec<Fr>>,
+    pub commits: Vec<Commitment<Bls12_381>>,
 }
 
-impl<E: Pairing> Grid<E> {
-    fn from_data(data: Vec<u8>, c: &(impl Committer<E> + Sync)) -> Self {
-        let pt_size = E::ScalarField::zero().serialized_size(Compress::Yes) - 1;
+impl Grid {
+    fn from_data(data: Vec<u8>, c: &(impl Committer<Bls12_381> + Sync)) -> Self {
+        let pt_size = Fr::zero().serialized_size(Compress::Yes) - 1;
         let points: Vec<_> = data
             .chunks(pt_size)
-            .map(|chunk| E::ScalarField::from_be_bytes_mod_order(chunk))
+            .map(|chunk| Fr::from_be_bytes_mod_order(chunk))
             .collect();
 
         let mut rows: Vec<_> = points
@@ -56,26 +59,25 @@ impl<E: Pairing> Grid<E> {
                 let mut row: Vec<_> = row.to_vec();
                 if row.len() != GRID_WIDTH {
                     println!("Padding end of row with {} elems to fit grid", row.len());
-                    row.resize(GRID_WIDTH, E::ScalarField::zero());
+                    row.resize(GRID_WIDTH, Fr::zero());
                 }
                 row
             })
             .collect();
 
-        let domain_h = GeneralEvaluationDomain::<E::ScalarField>::new(rows.len()).unwrap();
+        let domain_h = GeneralEvaluationDomain::<Fr>::new(rows.len()).unwrap();
         if domain_h.size() != rows.len() {
             println!(
                 "Padding {} rows to fit the best evaluation domain of size {}",
                 rows.len(),
                 domain_h.size()
             );
-            rows.resize(domain_h.size(), vec![E::ScalarField::zero(); GRID_WIDTH]);
+            rows.resize(domain_h.size(), vec![Fr::zero(); GRID_WIDTH]);
         }
-        let domain_2h =
-            GeneralEvaluationDomain::<E::ScalarField>::new(2 * domain_h.size()).unwrap();
+        let domain_2h = GeneralEvaluationDomain::<Fr>::new(2 * domain_h.size()).unwrap();
         assert_eq!(domain_h.size(), rows.len());
 
-        let mut interp_rows = vec![vec![E::ScalarField::zero(); GRID_WIDTH]; 2 * rows.len()];
+        let mut interp_rows = vec![vec![Fr::zero(); GRID_WIDTH]; 2 * rows.len()];
 
         let erasure_t = start_timer!(|| "erasure encoding columns");
         for j in 0..GRID_WIDTH {
@@ -91,22 +93,26 @@ impl<E: Pairing> Grid<E> {
         }
         end_timer!(erasure_t);
 
-        let domain_w = GeneralEvaluationDomain::<E::ScalarField>::new(GRID_WIDTH).unwrap();
+        let domain_w = GeneralEvaluationDomain::<Fr>::new(GRID_WIDTH).unwrap();
 
         let poly_t = start_timer!(|| "computing polynomials from evals");
-        let polys: Vec<_> = interp_rows.iter().map(|row| domain_w.ifft(&row)).collect();
+        let polys: Vec<_> = interp_rows.par_iter().map(|row| domain_w.ifft(&row)).collect();
         end_timer!(poly_t);
 
         let commit_t = start_timer!(|| "computing commitments");
+        let commit_t1 = start_timer!(|| "committing to underlying rows");
         let mut commits: Vec<_> = polys
             .par_iter()
             .step_by(2)
             .map(|row| c.commit(row).expect("Commit failed").0.into_group())
             .collect();
+        end_timer!(commit_t1);
 
+        let commit_t2 = start_timer!(|| "fft-ing underlying commitments");
         assert_eq!(commits.len(), domain_h.size());
         domain_h.ifft_in_place(&mut commits);
         domain_2h.fft_in_place(&mut commits);
+        end_timer!(commit_t2);
         end_timer!(commit_t);
 
         Self {
@@ -134,12 +140,8 @@ fn main() {
     }
 
     let pmp_t = start_timer!(|| "create pmp");
-    let pmp = M1Precomp::<ark_bls12_381::Bls12_381>::new(
-        GRID_WIDTH,
-        point_sets.clone(),
-        &mut thread_rng(),
-    )
-    .expect("Failed to make pmp");
+    let pmp = M1Precomp::new(GRID_WIDTH, point_sets.clone(), &mut thread_rng())
+        .expect("Failed to make pmp");
     end_timer!(pmp_t);
 
     let grid_t = start_timer!(|| "create grid");

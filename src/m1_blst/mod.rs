@@ -9,13 +9,13 @@ use blst::{p1_affines, p2_affines};
 use merlin::Transcript;
 use std::usize;
 
-use ark_ec::{pairing::Pairing, CurveGroup};
+use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup};
 use ark_std::rand::RngCore;
 
 use crate::{get_challenge, get_field_size, transcribe_points_and_evals, Commitment};
 
 use super::{
-    gen_curve_powers, gen_powers, linear_combination, poly_div_q_r, vanishing_polynomial, Error,
+    gen_powers, linear_combination, poly_div_q_r, vanishing_polynomial, Error,
 };
 
 pub use ark_bls12_381::{
@@ -103,8 +103,10 @@ impl M1NoPrecomp {
         )?;
 
         // Then do a single msm of the gammas and commitments
-        let cms = commits.iter().map(|i| i.0).collect::<Vec<_>>();
-        let gamma_cm_pt = super::curve_msm::<G1>(&cms, gammas.as_ref())?;
+        let cms = commits.iter().map(|i| i.0.into_group()).collect::<Vec<_>>();
+        let cms_prep = fast_msm::prep_g1s(&cms.as_slice());
+        let gammas_prep = fast_msm::prep_scalars(gammas.as_ref());
+        let gamma_cm_pt = fast_msm::g1_msm(&cms_prep, &gammas_prep, cms.len())?;
 
         let g2 = self.powers_of_g2[0];
 

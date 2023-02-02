@@ -34,5 +34,8 @@ blst = ["dep:blst", "ark-bls12-381"]
 name = "precomp_bench"
 harness = false
 
+[[example]]
+name = "data_availability_grid"
+
 [package.metadata.docs.rs]
 rustdoc-args = ["--html-in-header", "./doc/katex-header.html"]

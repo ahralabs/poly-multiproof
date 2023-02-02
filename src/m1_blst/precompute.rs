@@ -56,6 +56,7 @@ impl PolyMultiProof<Bls12_381> for M1Precomp {
         point_sets: Vec<Vec<Fr>>,
         r: &mut impl ark_std::rand::RngCore,
     ) -> Result<Self, Error> {
+        dbg!("BLST mode activated");
         let inner = super::M1NoPrecomp::new(
             max_coeffs,
             point_sets
