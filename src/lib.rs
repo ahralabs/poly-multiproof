@@ -14,6 +14,8 @@ pub mod method1;
 pub mod method2;
 
 pub mod lagrange;
+#[cfg(feature = "blst")]
+pub mod m1_blst;
 pub mod traits;
 
 #[derive(thiserror::Error, Debug, Eq, PartialEq)]
@@ -109,16 +111,22 @@ pub(crate) fn linear_combination<F: Field>(
         .into()
 }
 
-pub(crate) fn gen_curve_powers<G: ScalarMul + CurveGroup>(
+pub(crate) fn gen_curve_powers_proj<G: ScalarMul + CurveGroup>(
     powers: &[G::ScalarField],
     rng: &mut impl RngCore,
-) -> Vec<G::Affine> {
+) -> Vec<G> {
     let g = G::rand(rng);
     let window_size = FixedBase::get_mul_window_size(powers.len());
     let scalar_size = G::ScalarField::MODULUS_BIT_SIZE as usize;
     let g_table = FixedBase::get_window_table::<G>(scalar_size, window_size, g);
-    let powers_of_g_proj = FixedBase::msm::<G>(scalar_size, window_size, &g_table, powers);
-    G::normalize_batch(&powers_of_g_proj)
+    FixedBase::msm::<G>(scalar_size, window_size, &g_table, powers)
+}
+
+pub(crate) fn gen_curve_powers<G: ScalarMul + CurveGroup>(
+    powers: &[G::ScalarField],
+    rng: &mut impl RngCore,
+) -> Vec<G::Affine> {
+    G::normalize_batch(&gen_curve_powers_proj(powers, rng))
 }
 
 pub(crate) fn get_field_size<F: Field + CanonicalSerialize>() -> usize {
