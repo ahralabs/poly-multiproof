@@ -5,12 +5,18 @@ Methods and runtime:
 
 The two methods here are inspired by [BDFG21](https://eprint.iacr.org/2020/081.pdf).
 
+### Features
+* `blst` enables a specific `bls12-381` implementation which uses `blst` for curve msm.
+* `parallel` enables parallel computation for
+  * PMP setup generation
+  * operations in the `data_availability_grid` example
+* `print-trace` enables some tracing that shows the time certain things take to execute
 
 ### Examples
 
 An example of using pmp for a grid data availability scheme with 1d erasure encoding is in `examples/data_availability_grid.rs`. To run it with a nice timer, do
 ```bash
-cargo run --example data_availability_grid --release --features print-trace
+cargo run --example data_availability_grid --release --features print-trace,blst,parallel
 ```
 
 which will print out something like this example for a 256x256 grid
@@ -35,7 +41,7 @@ There are nice constants in the top of the file to play with.
 
 ### Benchmarks
 
-To run benchmarks with asm optimizations on x86 machines, run
+To run benchmarks with `arkworks-rs` asm optimizations on x86 machines, run
 ```bash
 RUSTFLAGS="-C target-feature=+bmi2,+adx" cargo +nightly criterion --features asm
 ```
