@@ -38,7 +38,7 @@ const N_CHUNKS_H: usize = 32;
 
 // Can leave these alone
 const CHUNK_W: usize = GRID_WIDTH / N_CHUNKS_W;
-const CHUNK_H: usize = GRID_HEIGHT / N_CHUNKS_H;
+const CHUNK_H: usize = 2 * GRID_HEIGHT / N_CHUNKS_H;
 
 struct Grid {
     pub evals: Vec<Vec<Fr>>,
