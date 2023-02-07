@@ -99,11 +99,11 @@ impl<E: Pairing> PolyMultiProofNoPrecomp<E> for M1NoPrecomp<E> {
     type Proof = Proof<E>;
     fn new(max_coeffs: usize, max_pts: Option<usize>, rng: &mut impl RngCore) -> Result<Self, Error> {
         let x = E::ScalarField::rand(rng);
-        let x_powers = gen_powers(x, max_coeffs);
-        let max_pts = max_pts.unwrap_or(max_coeffs + 1);
+        let max_pts = max_pts.unwrap_or(max_coeffs) + 1;
+        let x_powers = gen_powers(x, std::cmp::max(max_coeffs, max_pts));
 
         let powers_of_g1 = gen_curve_powers::<E::G1>(x_powers.as_ref(), rng);
-        let powers_of_g2 = gen_curve_powers::<E::G2>(x_powers[..max_pts + 1].as_ref(), rng);
+        let powers_of_g2 = gen_curve_powers::<E::G2>(x_powers[..max_pts].as_ref(), rng);
 
         Ok(M1NoPrecomp {
             powers_of_g1,
@@ -153,7 +153,7 @@ mod tests {
 
     #[test]
     fn test_basic_open_works() {
-        let s = M1NoPrecomp::<Bls12_381>::new(256, 32.into(), &mut test_rng()).unwrap();
+        let s = M1NoPrecomp::<Bls12_381>::new(256, 30.into(), &mut test_rng()).unwrap();
         let points = (0..30)
             .map(|_| Fr::rand(&mut test_rng()))
             .collect::<Vec<_>>();

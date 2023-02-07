@@ -9,7 +9,7 @@ use rayon::prelude::*;
 use super::{fast_msm, vanishing_polynomial, Error, Proof};
 use crate::lagrange::LagrangeInterpContext;
 use crate::traits::{Committer, PolyMultiProof, PolyMultiProofNoPrecomp};
-use crate::{Commitment, cfg_iter};
+use crate::{cfg_iter, Commitment};
 
 pub struct M1Precomp {
     pub inner: super::M1NoPrecomp,
@@ -25,8 +25,7 @@ impl M1Precomp {
             .map(|(_, ps)| vanishing_polynomial(ps))
             .collect();
         let g2_zeros = cfg_iter!(vanishing_polys)
-            .map(|(_, p)| fast_msm::prep_scalars(&p))
-            .map(|p| fast_msm::g2_msm(&inner.prepped_g2s, &p, inner.powers_of_g2.len()))
+            .map(|(_, p)| fast_msm::g2_msm(&inner.prepped_g2s, &p, inner.powers_of_g2.len()))
             .collect::<Result<Vec<_>, Error>>()?;
         let lagrange_ctxs = cfg_iter!(point_sets)
             .map(|(_, ps)| LagrangeInterpContext::new_from_points(ps.as_ref()))
@@ -56,7 +55,6 @@ impl PolyMultiProof<Bls12_381> for M1Precomp {
         point_sets: Vec<Vec<Fr>>,
         r: &mut impl ark_std::rand::RngCore,
     ) -> Result<Self, Error> {
-        dbg!("BLST mode activated");
         let inner = super::M1NoPrecomp::new(
             max_coeffs,
             point_sets

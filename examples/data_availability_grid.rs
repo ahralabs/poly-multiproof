@@ -26,15 +26,15 @@ use rayon::prelude::*;
 //******************************
 
 // The width of the grid
-const GRID_WIDTH: usize = 256;
+const GRID_WIDTH: usize = 4096;
 // The height of the grid (before erasure encoding)
 const GRID_HEIGHT: usize = 256;
 // The number of pieces to break the grid into horizontally.
 // The smaller this is, the more time PMP setup will take, but the faster opening will be.
-const N_CHUNKS_W: usize = 32;
+const N_CHUNKS_W: usize = 64;
 // The number of pieces to break the grid into vertically
 // The bigger this is, the faster verification will be
-const N_CHUNKS_H: usize = 32;
+const N_CHUNKS_H: usize = 16;
 
 // Can leave these alone
 const CHUNK_W: usize = GRID_WIDTH / N_CHUNKS_W;
@@ -146,6 +146,7 @@ fn main() {
 
     let grid_t = start_timer!(|| "create grid");
     let grid = Grid::from_data(data, &pmp);
+    assert_eq!(grid.polys.len(), 2*GRID_HEIGHT);
     end_timer!(grid_t);
 
     let coords: Vec<_> = (0..N_CHUNKS_H)

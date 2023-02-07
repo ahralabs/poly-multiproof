@@ -14,7 +14,7 @@ use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup};
 use ark_std::rand::RngCore;
 
 use crate::{
-    get_challenge, get_field_size, method1, transcribe_generic, transcribe_points_and_evals,
+    get_challenge, get_field_size, transcribe_generic, transcribe_points_and_evals,
     Commitment,
 };
 
@@ -31,17 +31,12 @@ pub struct M2NoPrecomp<E: Pairing> {
     pub g2x: E::G2Affine,
 }
 
-impl<E: Pairing> TryFrom<method1::M1NoPrecomp<E>> for M2NoPrecomp<E> {
-    type Error = Error;
-
-    fn try_from(value: method1::M1NoPrecomp<E>) -> Result<Self, Self::Error> {
-        if value.powers_of_g2.len() < 2 {
-            return Err(Error::NotEnoughG2Powers);
-        }
+impl<E: Pairing> M2NoPrecomp<E> {
+    pub fn new_from_powers(g1: &Vec<E::G1Affine>, g2: &Vec<E::G2Affine>) -> Result<Self, Error> {
         Ok(Self {
-            powers_of_g1: value.powers_of_g1,
-            g2: value.powers_of_g2[0],
-            g2x: value.powers_of_g2[1],
+            powers_of_g1: g1.clone(),
+            g2: *g2.get(0).ok_or(Error::NotEnoughG2Powers)?,
+            g2x: *g2.get(1).ok_or(Error::NotEnoughG2Powers)?,
         })
     }
 }
