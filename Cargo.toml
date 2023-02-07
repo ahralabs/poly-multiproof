@@ -32,7 +32,7 @@ blst = ["dep:blst", "ark-bls12-381"]
 parallel = ["rayon"]
 
 [[bench]]
-name = "precomp_bench"
+name = "bench"
 harness = false
 
 [[example]]
