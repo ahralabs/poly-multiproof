@@ -1,0 +1,225 @@
+<!DOCTYPE HTML>
+<html lang="en" class="sidebar-visible no-js light">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>1. Overview - Polynomial Multiproof Spec</title>
+        <!-- Custom HTML head -->
+        <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff" />
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="highlight.css">
+        <link rel="stylesheet" href="tomorrow-night.css">
+        <link rel="stylesheet" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+    </head>
+    <body>
+        <!-- Provide site root to javascript -->
+        <script type="text/javascript">
+            var path_to_root = "";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script type="text/javascript">
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script type="text/javascript">
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            var html = document.querySelector('html');
+            html.classList.remove('no-js')
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add('js');
+        </script>
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script type="text/javascript">
+            var html = document.querySelector('html');
+            var sidebar = 'hidden';
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            }
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <div class="sidebar-scrollbox">
+                <ol class="chapter"><li class="chapter-item expanded "><a href="1_overview.html"><strong aria-hidden="true">1.</strong> Overview</a></li><li class="chapter-item expanded "><a href="2_setup.html"><strong aria-hidden="true">2.</strong> Setup</a></li><li class="chapter-item expanded "><a href="3_method1.html"><strong aria-hidden="true">3.</strong> Method 1</a></li><li class="chapter-item expanded "><a href="4_method2.html"><strong aria-hidden="true">4.</strong> Method 2</a></li><li class="chapter-item expanded "><a href="a_optimizations.html"><strong aria-hidden="true">5.</strong> A. Optimizations</a></li></ol>
+            </div>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky bordered">
+                    <div class="left-buttons">
+                        <button id="sidebar-toggle" class="icon-button" type="button" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </button>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light (default)</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">Polynomial Multiproof Spec</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script type="text/javascript">
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.12.0/dist/katex.min.css" integrity="sha384-AfEj0r4/OFrOo5t7NnNe46zW/tFgW6x/bCJG8FqQCEo3+Aro6EYUG4+cU+KJWu/X" crossorigin="anonymous">
+<h1 id="overview"><a class="header" href="#overview">Overview</a></h1>
+<p>The Polynomial Multiproof (PMP) scheme is a polynomial commitment scheme that allows for efficiently creating/verifying opening proofs for multiple polynomials at multiple points. 
+Notably, opening speed is mostly <em>not dependent on the number of polynomials/points</em> opened to.
+Verification scales with the number of points/polynomials, but remains fast.
+Two methods are provided, which trade opening speed for verification speed. </p>
+<p>For some sample numbers, here are times opening/verifying degree 255 polynomials using BLS12-381<sup class="footnote-reference"><a href="#1">1</a></sup>:</p>
+<table><thead><tr><th></th><th>Method 1</th><th>Method 2</th></tr></thead><tbody>
+<tr><td>Opening time</td><td>12-14ms</td><td>26-28ms</td></tr>
+<tr><td>Verification time</td><td>4-48ms</td><td>5-35ms</td></tr>
+</tbody></table>
+<p><img src="./veri-times.png" alt="Verification Times" /></p>
+<p>This specification outlines implementation requirements for the polynomial multiproof (PMP) scheme.
+This builds on previous methods such as KZG10<sup class="footnote-reference"><a href="#2">2</a></sup>, and is heavily inspired by BDFG21<sup class="footnote-reference"><a href="#3">3</a></sup>. 
+It should be seen as choosing a special case of BDFG21 which allows for significant optimizations that make the protocol more viable for use in applications like Data Availability.</p>
+<p>The scheme consists of four methods:</p>
+<ol>
+<li><code>Setup</code> which sets up a structured reference string for the curve and does some </li>
+<li><code>Commit</code> which commits to a polynomial</li>
+<li><code>M1Open/M2Open</code> which computes a single opening proof that a set of polynomials are equal to specific values at a set of points</li>
+<li><code>M1Verify/M2Verify</code> which verify an opening proof against commitments and evaluations</li>
+</ol>
+<h3 id="applications-to-data-availability"><a class="header" href="#applications-to-data-availability">Applications to Data Availability</a></h3>
+<p>Data availability systems can benefit greatly from PMP, since polynomial commitment-based DA systems are tremendously constrained by opening time.
+Even with very fast KZG implementations, opening is too slow, and constrains the amount of data which can be processed through the system</p>
+<blockquote>
+<p>Opening to a degree 255 BLS12-381 scalar field polynomial takes at best ~3-6ms, which means opening to every cell of 256 of those polynomials will take &gt;200s.</p>
+</blockquote>
+<p>Because PMP allows many cells to be opened to at once, the data availability grid can be chunked into a smaller grid, allowing for a faster, more secure system, with far higher througput <sup class="footnote-reference"><a href="#4">4</a></sup>.
+This allows polynomial commitment-based DA systems scale up in size without taking more compute.</p>
+<h3 id="curve-selection"><a class="header" href="#curve-selection">Curve selection</a></h3>
+<p>The protocol depends on the selection of a pairing based curve. 
+Attributes of an ideal curve for this protocol are, in order of importance,</p>
+<ol>
+<li>Security</li>
+<li>Fast G1 scalar multiplication</li>
+<li>Large scalar field size</li>
+<li>Fast G2 scalar multiplication</li>
+<li>Small compressed G1 scalar size</li>
+</ol>
+<p>BLS12-381 satisfies the first two critera well, and while other curves likely could satisfy more requirements, they are currently not as well audited. Hence BLS12-381 is a reasonable choice to start with.</p>
+<p>The scheme given in BDFG21 is interactive, so Merlin transcripts are used to do the Fiat-Shamir transform.</p>
+<p>Optimizations made from BDFG21 are outlined in <a href="./a_optimizations.html">Optimizations</a></p>
+<div class="footnote-definition" id="1"><sup class="footnote-definition-label">1</sup>
+<p>All times are with a Xeon E5-2676 v3 @ 2.40GHz vCPU on AWS</p>
+</div>
+<div class="footnote-definition" id="2"><sup class="footnote-definition-label">2</sup>
+<p><a href="https://www.iacr.org/archive/asiacrypt2010/6477178/6477178.pdf">KZG10 Paper</a></p>
+</div>
+<div class="footnote-definition" id="3"><sup class="footnote-definition-label">3</sup>
+<p><a href="https://eprint.iacr.org/2020/081.pdf">BDFG21 Paper</a></p>
+</div>
+<div class="footnote-definition" id="4"><sup class="footnote-definition-label">4</sup>
+<p>More FFTs are required as data size increases, but these are dwarfed by opening times. Additionally, exactly how the chunking is done has nuanced security implications in different scenarios. </p>
+</div>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="next" href="2_setup.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="next" href="2_setup.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+        <script type="text/javascript">
+            window.playground_copyable = true;
+        </script>
+        <script src="elasticlunr.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="mark.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="searcher.js" type="text/javascript" charset="utf-8"></script>
+        <script src="clipboard.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="highlight.js" type="text/javascript" charset="utf-8"></script>
+        <script src="book.js" type="text/javascript" charset="utf-8"></script>
+
+        <!-- Custom JS scripts -->
+    </body>
+</html>
